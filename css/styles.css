@@ -1,0 +1,52 @@
+*{
+	box-sizing: border-box;
+	margin :0;
+	padding: 0;
+}
+html {
+	height: 100%;
+}
+body {
+	margin: 0;
+	padding: 0;
+	background-color: #202020;
+	color: #ffffff;
+	line-height: 20px;
+	height: 100%;
+	overflow: hidden;
+	font-family: 'Roboto', sans-serif;
+	font-size: 13px;
+	font-weight: 100;
+	text-shadow: 0 1px 0 rgba(0,0,0,.6);
+}
+#container {
+	position: absolute;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+}
+#info{
+	position: absolute;
+	left: 20px;
+	top: 20px;
+	max-width: 600px;
+}
+#info h1{
+	font-family: 'Roboto Slab', sans-serif;
+	font-weight: bold;
+	font-size: 16px;
+	margin-bottom: 1em;
+}
+#info p{
+	margin-bottom: 1em;
+}
+#info a{
+	color: inherit;
+	text-decoration: none;
+	opacity: .5;
+	transition: opacity 100ms ease-out;
+}
+#info a:hover{
+	opacity: 1
+}

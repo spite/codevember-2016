@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Triangle Tunnel</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../2" >Previous</a> | <a href="../4" >Next</a></p>
+			<h1>3. Attractor</h1>
+			<p>Attractor</p>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.MeshLine.js"></script>
+
+<script id="particle-vs" type="x-shader/x-vertex">
+precision highp float;
+
+attribute vec3 position;
+attribute float vertexId;
+attribute float size;
+
+uniform mat4 modelMatrix;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform vec3 vertices[ 3 ];
+uniform vec2 uvs[ 3 ];
+
+uniform vec2 dimensions;
+uniform float scale;
+uniform vec3 cameraPosition;
+
+varying vec2 vUv;
+
+const float PI = 3.14159265359;
+
+void main() {
+
+	int id = int( vertexId	 );
+	vec3 v = vertices[ id ];
+	vec4 p = modelViewMatrix * vec4( position, 1. );
+	p.xyz += scale * v * size;
+
+	vUv = uvs[ id ];
+
+	gl_Position = projectionMatrix * p;
+
+}
+
+</script>
+
+<script id="particle-fs" type="x-shader/x-vertex">
+precision highp float;
+
+varying vec2 vUv;
+
+uniform float opacity;
+
+void main() {
+
+	vec2 barycenter = vec2( .5, .6666 );
+	float d = smoothstep( .5, .55, 1. - 2. * length( vUv - barycenter ) );
+	if( d <= 0. ) discard;
+	float a = .5 - length( vUv - barycenter );
+	gl_FragColor = vec4( vec3( 1. ), a * opacity );
+
+}
+
+</script>
+
+
+
+<script>
+
+// http://65.media.tumblr.com/ca14be5f42fb7400262dcda5b118c717/tumblr_oe3gqjol4V1qapjdzo1_500.jpg
+// http://67.media.tumblr.com/32ea1365d8ab8793b84232077a3cd065/tumblr_nmflvg45HG1tzffmlo1_1280.jpg
+
+'use strict';
+
+var NUM_POINTS = 50000;
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var container = document.getElementById( 'container' );
+
+var h = 0.004;
+var a = 10;
+var b = 28;
+var c = 8/3;
+var x = 0;
+var y = 10;
+var z = 10;
+
+var points = [];
+var particles = [];
+
+function generatePointLorenz() {
+
+	x += h * a * ( y - x );
+	y += h * ( x * ( b - z ) - y );
+	z += h * ( x * y - c * z );
+
+	return { x: x, y: y, z: z }
+
+}
+
+function genereatePointRössler() {
+
+	a = .2;
+	b = .2;
+	c = 5.7;
+
+	x += h * - ( y + z );
+	y += h * ( x + a * y );
+	z += h * ( b + x * z - c * z );
+
+	return { x: x, y: y, z: z }
+
+}
+
+var resolution = new THREE.Vector2( window.innerWidth, window.innerHeight );
+
+function initScene() {
+
+	for( var j = 0; j < NUM_POINTS; j++ ) {
+
+		var p = genereatePointRössler( j );
+		//var p = generatePointLorenz( j );
+
+		points.push( p.x );
+		points.push( p.y );
+		points.push( p.z );
+
+		var d = 2 * j / NUM_POINTS;
+		particles.push( p.x + Maf.randomInRange( -d, d ) );
+		particles.push( p.y + Maf.randomInRange( -d, d ) );
+		particles.push( p.z + Maf.randomInRange( -d, d ) );
+
+	}
+
+	var geometry = new THREE.Geometry();
+	for( var j = 0; j < points.length; j+=3 ) {
+		var v = new THREE.Vector3( points[ j ], points[ j + 1 ], points[ j + 2 ] );
+		geometry.vertices.push( v );
+	}
+	//geometry.center();
+	var line = new THREE.MeshLine();
+	line.setGeometry( geometry, function( p ) { return 1 * Maf.parabola( p, 1 ) } ); // makes width taper
+	var material = new THREE.MeshLineMaterial({
+		color: new THREE.Color( 0x283032 ),
+		resolution: resolution,
+		sizeAttenuation: true,
+		lineWidth: .4,
+		opacity: .5,
+		near: camera.near,
+		far: camera.far,
+		depthWrite: false,
+		depthTest: false,
+		transparent: true,
+		blending: THREE.AdditiveBlending
+	});
+	var mesh = new THREE.Mesh( line.geometry, material );
+	scene.add( mesh );
+
+	var geometry = new THREE.BufferGeometry();
+	var positions = new Float32Array( points );
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	var material = new THREE.LineBasicMaterial({
+		color: new THREE.Color( 0xffffff ),
+		opacity: .5,
+		transparent: true,
+		blending: THREE.AdditiveBlending
+	});
+
+	geometry.computeBoundingSphere();
+//	geometry.center();
+
+	mesh = new THREE.Line( geometry, material );
+	scene.add( mesh );
+
+	var pData = [];
+	var idData = [];
+	var sizeData = [];
+	for( var j = 0; j < particles.length; j += 3 ) {
+
+		var x = particles[ j ];
+		var y = particles[ j + 1 ];
+		var z = particles[ j + 2 ];
+		var s = Maf.randomInRange( .1, 2 );
+
+		pData.push( x );
+		pData.push( y );
+		pData.push( z );
+		idData.push( j % 3 );
+		sizeData.push( s );
+
+		pData.push( x );
+		pData.push( y );
+		pData.push( z );
+		idData.push( j % 3 + 1 );
+		sizeData.push( s );
+
+		pData.push( x );
+		pData.push( y );
+		pData.push( z );
+		idData.push( j % 3 + 2 );
+		sizeData.push( s );
+
+	}
+
+	var particleGeometry = new THREE.BufferGeometry();
+	var positions = new Float32Array( pData );
+	var indices = new Float32Array( idData );
+	var sizes = new Float32Array( sizeData );
+
+	particleGeometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	particleGeometry.addAttribute( 'vertexId', new THREE.BufferAttribute( indices, 1 ) );
+	particleGeometry.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
+	particleGeometry.computeBoundingSphere();
+//	particleGeometry.center();
+
+	var particleMaterial = new THREE.RawShaderMaterial( {
+		uniforms:{
+			scale: { type: 'f', value: .025 },
+			opacity: { type: 'f', value: .5 },
+			vertices: { type: 'v3v', value: [
+				new THREE.Vector3( -1, -1, 0 ),
+				new THREE.Vector3(  1, -1, 0 ),
+				new THREE.Vector3(  0,  1, 0 )
+			]},
+			uvs: { type: 'v2v', value: [
+				new THREE.Vector3( 0, 1 ),
+				new THREE.Vector3( 1, 1 ),
+				new THREE.Vector3( .5, 0 )
+			]}
+		},
+		vertexShader: document.getElementById( 'particle-vs' ).textContent,
+		fragmentShader: document.getElementById( 'particle-fs' ).textContent,
+		depthTest: false,
+		depthWrite: false,
+		transparent: true,
+		blending: THREE.AdditiveBlending
+	} );
+
+	var particleSystem = new THREE.Mesh( particleGeometry, particleMaterial );
+	scene.add( particleSystem );
+
+	var particleMaterial = new THREE.PointsMaterial();
+	var particleSystem = new THREE.Points( particleGeometry, particleMaterial );
+	//scene.add( particleSystem );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 500 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	/*var e1 = .5 + .5 * Math.sin( .001 * performance.now() );
+	var e2 = .5 + .5 * Math.sin( .0011 * performance.now() );
+	var e3 = .5 + .5 * Math.sin( .0012 * performance.now() );
+	scene.children[1].geometry.setDrawRange( 0, scene.children[1].geometry.attributes.position.count * e1 )
+	scene.children[2].geometry.setDrawRange( 0, scene.children[2].geometry.attributes.position.count * e2 )
+	scene.children[3].geometry.setDrawRange( 0, scene.children[3].geometry.attributes.position.count * e3 )*/
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
