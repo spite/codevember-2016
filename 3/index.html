@@ -58,16 +58,18 @@ uniform vec3 color;
 
 varying vec2 vUv;
 varying vec3 vColor;
+varying float vSize;
 
 const float PI = 3.14159265359;
 
 void main() {
 
-	int id = int( vertexId	 );
+	int id = int( vertexId );
 	vec3 v = vertices[ id ];
 	vec4 p = modelViewMatrix * vec4( position, 1. );
 	p.xyz += scale * v * size;
 
+	vSize = size;
 	vUv = uvs[ id ];
 	vColor = color;
 
@@ -101,6 +103,7 @@ precision highp float;
 
 varying vec2 vUv;
 varying vec3 vColor;
+varying float vSize;
 
 uniform float opacity;
 
@@ -108,8 +111,9 @@ void main() {
 
 	vec2 barycenter = vec2( .5, .6666 );
 	float d = smoothstep( .5, .55, 1. - 2. * length( vUv - barycenter ) );
-	if( d <= 0. ) discard;
-	float a = .5 - length( vUv - barycenter );
+	float a = 1. - smoothstep( .9, 1., 5. * length( vUv - barycenter ) );
+	a *= vSize;
+	if( d <= 0. || a * opacity <= 0. ) discard;
 	gl_FragColor = vec4( vColor, a * opacity );
 
 }
@@ -572,7 +576,7 @@ function initScene( id, randomize ) {
 		resolution: resolution,
 		sizeAttenuation: true,
 		lineWidth: 1 * attractor.scale * attractor.spread,
-		opacity: .025,
+		opacity: .03,
 		near: camera.near,
 		far: camera.far,
 		depthWrite: false,
@@ -589,7 +593,7 @@ function initScene( id, randomize ) {
 	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
 	var material = new THREE.LineBasicMaterial({
 		color: new THREE.Color( 0x8dafb0 ),
-		opacity: .2,
+		opacity: .25,
 		transparent: true,
 		blending: THREE.AdditiveBlending
 	});
