@@ -8,6 +8,9 @@
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
 		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
 
+		<style>
+		#fboh-fbos-list{ display: none !important; }
+		</style>
 	</head>
 	<body>
 
@@ -54,25 +57,28 @@ uniform float time;
 
 varying vec2 vUv;
 
-float random(vec2 n, float offset ){
-	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
-}
-
 void main() {
 
 	vec4 diffuse = texture2D( inputTexture, vUv );
 	vec2 motion = texture2D( motionVectorTexture, vUv ).xy;
 
-	vec2 inc = 10. * motion.xy / resolution;
+	vec2 inc = motion.xy / resolution;
 
 	vec3 sum = vec3( 0. );
 	vec2 uv = vUv - 10. * inc;
 	for(int i = 1; i < 20; ++i ) {
 		uv += inc;
-		//uv += .0001 * vec2( random( uv.xy, .0001 * time ), random( uv.yx, .00011 * time ) );
 		sum += texture2D( inputTexture, uv ).xyz;
 	}
 	sum /= 20.;
+
+	vec2 position = ( gl_FragCoord.xy / resolution ) - .5;
+	float boost = 1.1;
+	float reduction = .9;
+	float vignette = length( position );
+    vignette = boost - vignette * reduction;
+
+    sum *= vignette;
 
 	gl_FragColor = vec4( sum, 1. );
 
@@ -90,18 +96,19 @@ uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 
 uniform sampler2D positions;
+uniform vec2 dimensions;
+uniform float sphereSize;
+
+varying float vColor;
 
 void main() {
 
-	vec4 i = texture2D( positions, sphereData.xy / 32. );
+	vec4 i = texture2D( positions, sphereData.xy / dimensions );
 	vec3 spherePos = i.xyz;
-	vec3 stretchedVertex = position;
-	vec3 dir = vec3( 0., 0., i.z - i.a );
-	if( dot( dir, normal ) < 0. ) stretchedVertex.z -= .5 * dir.z;
-	else stretchedVertex.z += .5 * dir.z;
 
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + stretchedVertex, 1. );
-//	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + position, 1. );
+	vColor = clamp( spherePos.z / 8., 0., 1. );
+
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + sphereSize * position, 1. );
 
 }
 </script>
@@ -109,9 +116,11 @@ void main() {
 <script type="x-shader/x-fragment" id="particles-fs" >
 precision highp float;
 
+varying float vColor;
+
 void main() {
 
-	gl_FragColor = vec4( 1., 1., 1., .4 );
+	gl_FragColor = vec4( vec3( vColor ) , 1. );
 
 }
 </script>
@@ -128,22 +137,27 @@ uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
 
 uniform sampler2D positions;
+uniform vec2 dimensions;
+uniform float sphereSize;
 
-varying vec3 vSpeed;
+varying vec2 vSpeed;
 
 void main() {
 
-	vec4 i = texture2D( positions, sphereData.xy / 32. );
+	vec4 i = texture2D( positions, sphereData.xy / dimensions );
 	vec3 spherePos = i.xyz;
-	vec3 stretchedVertex = position;
+	vec3 stretchedVertex = sphereSize * position;
 	vec3 dir = vec3( 0., 0., i.z - i.a );
-	if( dot( dir, normal ) < 0. ) stretchedVertex.z -= .5 * dir.z;
+	dir *= 2.;
+	if( dot( normalize( dir ), normalize( normal ) ) < 0. ) stretchedVertex.z -= .5 * dir.z;
 	else stretchedVertex.z += .5 * dir.z;
 
-	vSpeed = ( projectionMatrix * modelViewMatrix * vec4( dir, 0. ) ).xyz;
+	vec2 from = ( projectionMatrix * modelViewMatrix * vec4( spherePos - dir, 1. ) ).xy;
+	vec2 to = ( projectionMatrix * modelViewMatrix * vec4( spherePos + dir, 1. ) ).xy;
+
+	vSpeed = ( to - from );
 
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + stretchedVertex, 1. );
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + position, 1. );
 
 }
 </script>
@@ -151,11 +165,11 @@ void main() {
 <script type="x-shader/x-fragment" id="motion-fs" >
 precision highp float;
 
-varying vec3 vSpeed;
+varying vec2 vSpeed;
 
 void main() {
 
-	gl_FragColor = vec4( vSpeed.xy, 0., 1. );
+	gl_FragColor = vec4( vSpeed, 0., 1. );
 
 }
 </script>
@@ -198,14 +212,18 @@ function memcpy (src, srcOffset, dst, dstOffset, length) {
 
 function createRenderTarget() {
 
-	return new THREE.WebGLRenderTarget( 1, 1, {
+	var rt = new THREE.WebGLRenderTarget( 1, 1, {
 		wrapS: THREE.ClampToEdgeWrapping,
 		wrapT: THREE.ClampToEdgeWrapping,
 		format: THREE.RGBAFormat,
-		type: THREE.FloatType,
+		type: THREE.HalfFloatType,
+		minFilter: THREE.LinearFilter,
+		magFilter: THREE.LinearFilter,
 		stencilBuffer: false,
 		depthBuffer: true
 	});
+
+	return rt;
 
 }
 
@@ -216,29 +234,32 @@ var motionBlurShader;
 var data, positionData;
 var noise = new ImprovedNoise();
 var resolution = new THREE.Vector2();
+var dimensions = new THREE.Vector2( 64, 64 );
 
 function initScene() {
 
-	var sphereGeometry = new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( .2, 3 ) );
+	var sphereGeometry = new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( 1, 1 ) );
 	var sphereVertices = sphereGeometry.attributes.position.array;
 	var sphereNormals = sphereGeometry.attributes.normal.array;
 	var geometry = new THREE.BufferGeometry();
 	var l = sphereVertices.length;
-	var vertices = new Float32Array( l * 32 * 32 );
-	var normals = new Float32Array( l * 32 * 32 );
-	var sphereData = new Float32Array( l * 32 * 32 );
+	var vertices = new Float32Array( l * dimensions.x * dimensions.y );
+	var normals = new Float32Array( l * dimensions.x * dimensions.y );
+	var sphereData = new Float32Array( l * dimensions.x * dimensions.y );
 	geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
 	geometry.addAttribute( 'normal', new THREE.BufferAttribute( normals, 3 ) );
 	geometry.addAttribute( 'sphereData', new THREE.BufferAttribute( sphereData, 3 ) );
 
-	data = new Float32Array( 32 * 32 * 4 );
-	positionData = new THREE.DataTexture( data, 32, 32, THREE.RGBAFormat, THREE.FloatType );
+	data = new Float32Array( dimensions.x * dimensions.y * 4 );
+	positionData = new THREE.DataTexture( data, dimensions.x, dimensions.y, THREE.RGBAFormat, THREE.FloatType );
 	positionData.needsUpdate = true;
+
+	helper.attach( positionData, 'position' );
 
 	var ptr = 0;
 	var ptr2 = 0;
-	for( var y = 0; y < 32; y++ ) {
-		for(var x = 0; x < 32; x++ ) {
+	for( var y = 0; y < dimensions.y; y++ ) {
+		for(var x = 0; x < dimensions.x; x++ ) {
 			for( var j = ptr; j < ptr + l; j += 3 ){
 				sphereData[ j ] = x;
 				sphereData[ j + 1 ] = y;
@@ -246,8 +267,8 @@ function initScene() {
 			}
 			memcpy( sphereVertices, 0, vertices, ptr, l );
 			memcpy( sphereNormals, 0, normals, ptr, l );
-			data[ ptr2 ] = x - 16;
-			data[ ptr2 + 1 ] = y - 16;
+			data[ ptr2 ] = x - .5 * dimensions.x;
+			data[ ptr2 + 1 ] = y - .5 * dimensions.y;
 			data[ ptr2 + 2 ] = Maf.randomInRange( -2, 2 );
 			data[ ptr2 + 3 ] = Maf.randomInRange( 0, 1 );
 			ptr += l;
@@ -258,19 +279,20 @@ function initScene() {
 	diffuseMaterial = new THREE.RawShaderMaterial({
 		uniforms:{
 			resolution: { type: 'v2', value: resolution },
-			positions: { type: 't', value: positionData }
+			positions: { type: 't', value: positionData },
+			dimensions: { type: 'v2', value: dimensions },
+			sphereSize: { type: 'f', value: .2 }
 		},
 		vertexShader: document.getElementById( 'particles-vs' ).textContent,
-		fragmentShader: document.getElementById( 'particles-fs' ).textContent,
-		transparent: !true,
-		depthWrite: false,
-		depthTest: false
+		fragmentShader: document.getElementById( 'particles-fs' ).textContent
 	});
 
 	motionMaterial = new THREE.RawShaderMaterial({
 		uniforms:{
 			resolution: { type: 'v2', value: resolution },
-			positions: { type: 't', value: positionData }
+			positions: { type: 't', value: positionData },
+			dimensions: { type: 'v2', value: dimensions },
+			sphereSize: { type: 'f', value: .2 }
 		},
 		vertexShader: document.getElementById( 'motion-vs' ).textContent,
 		fragmentShader: document.getElementById( 'motion-fs' ).textContent
@@ -293,13 +315,13 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 200 );
+	camera.position.set( 0, -40, 15 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x261b1f, 1 );
+	renderer.setClearColor( 0x361b1f, 1 );
 	container.appendChild( renderer.domElement );
 
 	helper = new FBOHelper( renderer );
@@ -355,7 +377,7 @@ function onWindowResized( event ) {
 	h *= dPR;
 
 	diffuseFBO.setSize( w, h );
-	motionFBO.setSize( w, h );
+	motionFBO.setSize( w / 4, h / 4 );
 
 	resolution.set( w, h );
 
@@ -374,13 +396,35 @@ function n( x, y, z ) {
 
 var run = true;
 
+function dist(x1, y1, x2, y2) {
+    return Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2);
+}
+
+function normalize(sine, value) {
+    return (value * 0.5) + (sine * (value * 0.5));
+}
+
+function linear( x, f, l, t ) {
+
+	return Math.sin( x / ( f * l ) + t );
+
+}
+
+function radial( x, y, f, r, t ) {
+
+	var ox = normalize( Math.sin( -t ), dimensions.x );
+	var oy = normalize( Math.cos( -t ), dimensions.y );
+	return Math.sin( dist( x, y, ox, oy ) / f * r );
+
+}
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
 	controls.update();
 
-	var t = .001 * performance.now();
+	var t = .004 * performance.now();
 	var s = .01;
 
 	if( run ) {
@@ -388,12 +432,23 @@ function animate() {
 			var x = data[ j ];
 			var y = data[ j + 1 ];
 			var z = data[ j + 2 ];
-			var nz = 10 * n( s * x, s * y, t );
-			data[ j + 2 ] = nz
+
+			var f = 20;
+			var l = .1;
+			var r = .3;
+
+			var combined = linear( x, dimensions.x * 2, .1, .5 * t ) +
+				linear( y, dimensions.y * 2, .2, .51 * t ) +
+				radial( x, y, dimensions.x * 2, .3, .49 * t ) +
+				radial( x, y, dimensions.y * 2, .35, .48 * t );
+
+			data[ j + 2 ] = combined + 4;
 			data[ j + 3 ] = z;
 		}
 		positionData.needsUpdate = true;
 	}
+
+	mesh.rotation.z = .05 * t;
 
 	mesh.material = motionMaterial;
 	renderer.render( scene, camera, motionFBO );
