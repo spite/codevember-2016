@@ -11,7 +11,7 @@ body {
 	padding: 0;
 	background-color: #202020;
 	color: #ffffff;
-	line-height: 20px;
+	line-height: 1.2em;
 	height: 100%;
 	overflow: hidden;
 	font-family: 'Roboto', sans-serif;
@@ -41,12 +41,13 @@ body {
 #info p{
 	margin-bottom: 1em;
 }
-#info a{
+#info a, .action{
 	color: inherit;
+	cursor: pointer;
 	text-decoration: none;
 	opacity: .5;
 	transition: opacity 100ms ease-out;
 }
-#info a:hover{
+#info a:hover, .action:hover{
 	opacity: 1
 }
