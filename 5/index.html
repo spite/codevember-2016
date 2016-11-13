@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Particle field</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<h1>5. Particle field</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/ImprovedNoise.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+
+<script type="x-shader/x-vertex" id="ortho-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="motion-blur-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform sampler2D motionVectorTexture;
+
+uniform vec2 resolution;
+uniform float time;
+
+varying vec2 vUv;
+
+float random(vec2 n, float offset ){
+	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+void main() {
+
+	vec4 diffuse = texture2D( inputTexture, vUv );
+	vec2 motion = texture2D( motionVectorTexture, vUv ).xy;
+
+	vec2 inc = 10. * motion.xy / resolution;
+
+	vec3 sum = vec3( 0. );
+	vec2 uv = vUv - 10. * inc;
+	for(int i = 1; i < 20; ++i ) {
+		uv += inc;
+		//uv += .0001 * vec2( random( uv.xy, .0001 * time ), random( uv.yx, .00011 * time ) );
+		sum += texture2D( inputTexture, uv ).xyz;
+	}
+	sum /= 20.;
+
+	gl_FragColor = vec4( sum, 1. );
+
+}
+</script>
+
+<script type="x-shader/x-vertex" id="particles-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec3 sphereData;
+attribute vec3 normal;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+uniform sampler2D positions;
+
+void main() {
+
+	vec4 i = texture2D( positions, sphereData.xy / 32. );
+	vec3 spherePos = i.xyz;
+	vec3 stretchedVertex = position;
+	vec3 dir = vec3( 0., 0., i.z - i.a );
+	if( dot( dir, normal ) < 0. ) stretchedVertex.z -= .5 * dir.z;
+	else stretchedVertex.z += .5 * dir.z;
+
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + stretchedVertex, 1. );
+//	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + position, 1. );
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="particles-fs" >
+precision highp float;
+
+void main() {
+
+	gl_FragColor = vec4( 1., 1., 1., .4 );
+
+}
+</script>
+
+<script type="x-shader/x-vertex" id="motion-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec3 sphereData;
+attribute vec3 normal;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 modelMatrix;
+uniform mat4 projectionMatrix;
+
+uniform sampler2D positions;
+
+varying vec3 vSpeed;
+
+void main() {
+
+	vec4 i = texture2D( positions, sphereData.xy / 32. );
+	vec3 spherePos = i.xyz;
+	vec3 stretchedVertex = position;
+	vec3 dir = vec3( 0., 0., i.z - i.a );
+	if( dot( dir, normal ) < 0. ) stretchedVertex.z -= .5 * dir.z;
+	else stretchedVertex.z += .5 * dir.z;
+
+	vSpeed = ( projectionMatrix * modelViewMatrix * vec4( dir, 0. ) ).xyz;
+
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + stretchedVertex, 1. );
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( spherePos + position, 1. );
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="motion-fs" >
+precision highp float;
+
+varying vec3 vSpeed;
+
+void main() {
+
+	gl_FragColor = vec4( vSpeed.xy, 0., 1. );
+
+}
+</script>
+
+<script>
+
+// http://archillect.com/93970
+// https://www.shadertoy.com/view/ldl3W8#
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+var diffuseMaterial, motionMaterial;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function memcpy (src, srcOffset, dst, dstOffset, length) {
+	var i
+
+	src = src.subarray || src.slice ? src : src.buffer
+	dst = dst.subarray || dst.slice ? dst : dst.buffer
+
+	src = srcOffset ? src.subarray ?
+		src.subarray(srcOffset, length && srcOffset + length) :
+		src.slice(srcOffset, length && srcOffset + length) : src
+
+	if (dst.set) {
+		dst.set(src, dstOffset)
+	} else {
+		for (i=0; i<src.length; i++) {
+			dst[i + dstOffset] = src[i]
+		}
+	}
+
+	return dst
+}
+
+function createRenderTarget() {
+
+	return new THREE.WebGLRenderTarget( 1, 1, {
+		wrapS: THREE.ClampToEdgeWrapping,
+		wrapT: THREE.ClampToEdgeWrapping,
+		format: THREE.RGBAFormat,
+		type: THREE.FloatType,
+		stencilBuffer: false,
+		depthBuffer: true
+	});
+
+}
+
+var diffuseFBO, motionFBO;
+var orthoScene, orthoQuad, orthoCamera;
+var motionBlurShader;
+
+var data, positionData;
+var noise = new ImprovedNoise();
+var resolution = new THREE.Vector2();
+
+function initScene() {
+
+	var sphereGeometry = new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( .2, 3 ) );
+	var sphereVertices = sphereGeometry.attributes.position.array;
+	var sphereNormals = sphereGeometry.attributes.normal.array;
+	var geometry = new THREE.BufferGeometry();
+	var l = sphereVertices.length;
+	var vertices = new Float32Array( l * 32 * 32 );
+	var normals = new Float32Array( l * 32 * 32 );
+	var sphereData = new Float32Array( l * 32 * 32 );
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+	geometry.addAttribute( 'normal', new THREE.BufferAttribute( normals, 3 ) );
+	geometry.addAttribute( 'sphereData', new THREE.BufferAttribute( sphereData, 3 ) );
+
+	data = new Float32Array( 32 * 32 * 4 );
+	positionData = new THREE.DataTexture( data, 32, 32, THREE.RGBAFormat, THREE.FloatType );
+	positionData.needsUpdate = true;
+
+	var ptr = 0;
+	var ptr2 = 0;
+	for( var y = 0; y < 32; y++ ) {
+		for(var x = 0; x < 32; x++ ) {
+			for( var j = ptr; j < ptr + l; j += 3 ){
+				sphereData[ j ] = x;
+				sphereData[ j + 1 ] = y;
+				sphereData[ j + 2 ] = 0;
+			}
+			memcpy( sphereVertices, 0, vertices, ptr, l );
+			memcpy( sphereNormals, 0, normals, ptr, l );
+			data[ ptr2 ] = x - 16;
+			data[ ptr2 + 1 ] = y - 16;
+			data[ ptr2 + 2 ] = Maf.randomInRange( -2, 2 );
+			data[ ptr2 + 3 ] = Maf.randomInRange( 0, 1 );
+			ptr += l;
+			ptr2 += 4;
+		}
+	}
+
+	diffuseMaterial = new THREE.RawShaderMaterial({
+		uniforms:{
+			resolution: { type: 'v2', value: resolution },
+			positions: { type: 't', value: positionData }
+		},
+		vertexShader: document.getElementById( 'particles-vs' ).textContent,
+		fragmentShader: document.getElementById( 'particles-fs' ).textContent,
+		transparent: !true,
+		depthWrite: false,
+		depthTest: false
+	});
+
+	motionMaterial = new THREE.RawShaderMaterial({
+		uniforms:{
+			resolution: { type: 'v2', value: resolution },
+			positions: { type: 't', value: positionData }
+		},
+		vertexShader: document.getElementById( 'motion-vs' ).textContent,
+		fragmentShader: document.getElementById( 'motion-fs' ).textContent
+	});
+
+	mesh = new THREE.Mesh(
+		geometry,
+		diffuseMaterial
+	);
+	scene.add( mesh );
+	mesh.fustrumCulled = false;
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 200 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	helper = new FBOHelper( renderer );
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	diffuseFBO = createRenderTarget();
+	motionFBO = createRenderTarget();
+
+	diffuseFBO.flipY = true;
+	motionFBO.flipY = true;
+
+	helper.attach( diffuseFBO, 'diffuse' );
+	helper.attach( motionFBO, 'motion' );
+
+	motionBlurShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			inputTexture: { type: 't', value: diffuseFBO.texture },
+			motionVectorTexture: { type: 't', value: motionFBO.texture },
+			resolution: { type: 'v2', value: resolution }
+		},
+		vertexShader: document.getElementById('ortho-vs').textContent,
+		fragmentShader: document.getElementById('motion-blur-fs').textContent,
+	} );
+
+	orthoScene = new THREE.Scene();
+	orthoCamera = new THREE.OrthographicCamera( 1 / - 2, 1 / 2, 1 / 2, 1 / - 2, .00001, 1000 );
+	orthoQuad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1 ), motionBlurShader );
+	orthoScene.add( orthoQuad );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+	helper.setSize( w,h );
+
+	var dPR = window.devicePixelRatio;
+	w *= dPR;
+	h *= dPR;
+
+	diffuseFBO.setSize( w, h );
+	motionFBO.setSize( w, h );
+
+	resolution.set( w, h );
+
+}
+
+function n( x, y, z ) {
+
+	var res = 0;
+	for( var o = 1; o < 8; o++ ) {
+		res += ( .5 - noise.noise( o * x, o * y, o * z ) ) / o;
+	}
+
+	return res;
+
+}
+
+var run = true;
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	var t = .001 * performance.now();
+	var s = .01;
+
+	if( run ) {
+		for( var j = 0; j < data.length; j += 4 ) {
+			var x = data[ j ];
+			var y = data[ j + 1 ];
+			var z = data[ j + 2 ];
+			var nz = 10 * n( s * x, s * y, t );
+			data[ j + 2 ] = nz
+			data[ j + 3 ] = z;
+		}
+		positionData.needsUpdate = true;
+	}
+
+	mesh.material = motionMaterial;
+	renderer.render( scene, camera, motionFBO );
+	mesh.material = diffuseMaterial;
+	renderer.render( scene, camera, diffuseFBO );
+
+	orthoQuad.material = motionBlurShader;
+	renderer.render( orthoScene, orthoCamera );
+
+	helper.update();
+
+}
+
+window.addEventListener( 'load', init );
+
+window.addEventListener( 'keydown', function( e ) {
+	if( e.keyCode === 32 ) {
+		run = !run;
+		e.preventDefault();
+	}
+})
+</script>
+
+	</body>
+</html>
