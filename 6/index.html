@@ -295,7 +295,8 @@ void main() {
 	loader.load( '../assets/st_lucia_beach_2k.jpg', function( res ) {
 
 		var equiToCube = new EquirectangularToCubemap( renderer );
-		material.uniforms.envMap.value = equiToCube.convert( res, 1024 );
+		material.envMap = equiToCube.convert( res, 1024 );
+		material.needsUpdate = true;
 
 	});
 
