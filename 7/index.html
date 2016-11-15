@@ -15,6 +15,10 @@
 		<div id="info" >
 			<p><a href="../6" >Previous</a> | <a href="../8" >Next</a></p>
 			<h1>7. GI</h1>
+			<div id="progress">
+				<p>Bounces progress: <span id="bouncesProgress" ></span></p>
+				<p>Samples progress: <span id="samplesProgress" ></span></p>
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -23,6 +27,40 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/THREE.ShaderTexture.js"></script>
+
+<script type="x-shader/x-vertex" id="object-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec3 color;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec3 vColor;
+
+void main() {
+
+	vColor = color;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+
+</script>
+
+<script type="x-shader/x-fragment" id="object-fs" >
+precision highp float;
+
+uniform vec3 uColor;
+varying vec3 vColor;
+
+void main() {
+
+	gl_FragColor = vec4( uColor * vColor, 1. );
+
+}
+
+</script>
 
 <script type="x-shader/x-vertex" id="ortho-vs" >
 precision highp float;
@@ -67,6 +105,8 @@ void main() {
 }
 </script>
 
+
+
 <script>
 
 // http://archillect.com/93970
@@ -77,10 +117,14 @@ void main() {
 var container, renderer, camera, controls, scene;
 var mesh;
 
+var bouncesProgress = document.getElementById( 'bouncesProgress' );
+var samplesProgress = document.getElementById( 'samplesProgress' );
+
 var helper;
 
 var container = document.getElementById( 'container' );
-var meshes = [];
+var meshes = [], meshColors = [];
+var computeObjectGI;
 
 function applyTransform( mesh, x, y, z, a, b, g ) {
 
@@ -93,6 +137,11 @@ function applyTransform( mesh, x, y, z, a, b, g ) {
 
 }
 
+var ptr = 0;
+var samples = 40;
+var total = 0;
+var ranges = [];
+
 function initScene() {
 
 	var tess = 2;
@@ -100,62 +149,65 @@ function initScene() {
 
 	var wallColor = new THREE.Color( .7295, .7355, .729 );
 
+	var floorMaterial = new THREE.MeshBasicMaterial( {
+		color: 0xffffff,
+		vertexColors: THREE.VertexColors,
+		wireframe: wireframe,
+		side: THREE.DoubleSide
+	} )
+
+	var wallMaterial = new THREE.MeshBasicMaterial( {
+		color: wallColor,
+		vertexColors: THREE.VertexColors,
+		wireframe: wireframe,
+		side: THREE.DoubleSide
+	} )
+
+	var redMaterial = new THREE.MeshBasicMaterial( {
+		color: new THREE.Color( .611, .0555, .062 ),
+		vertexColors: THREE.VertexColors,
+		wireframe: wireframe,
+		side: THREE.DoubleSide
+	} )
+
+	var greenMaterial = new THREE.MeshBasicMaterial( {
+		color: new THREE.Color( .117, .4125, .115 ),
+		vertexColors: THREE.VertexColors,
+		wireframe: wireframe,
+		side: THREE.DoubleSide
+	} )
+
 	var floor = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		new THREE.MeshBasicMaterial( {
-			color: 0xffffff,
-			vertexColors: THREE.VertexColors,
-			wireframe: wireframe,
-			side: THREE.DoubleSide
-		} )
+		floorMaterial
 	)
 	scene.add( floor );
 	applyTransform( floor, 0, -50, 0, -Math.PI / 2, 0, 0 );
 
 	var ceiling = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		new THREE.MeshBasicMaterial( {
-			color: wallColor,
-			vertexColors: THREE.VertexColors,
-			wireframe: wireframe,
-			side: THREE.DoubleSide
-		} )
+		wallMaterial
 	)
 	scene.add( ceiling );
 	applyTransform( ceiling, 0, 50, 0, Math.PI / 2, 0, 0 );
 
 	var redWall = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		new THREE.MeshBasicMaterial( {
-			color: new THREE.Color( .611, .0555, .062 ),
-			vertexColors: THREE.VertexColors,
-			wireframe: wireframe,
-			side: THREE.DoubleSide
-		} )
+		redMaterial
 	)
 	scene.add( redWall );
 	applyTransform( redWall, 0, 0, -50, 0, 0, 0 );
 
 	var greenWall = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		new THREE.MeshBasicMaterial( {
-			color: new THREE.Color( .117, .4125, .115 ),
-			vertexColors: THREE.VertexColors,
-			wireframe: wireframe,
-			side: THREE.DoubleSide
-		} )
+		greenMaterial
 	)
 	scene.add( greenWall );
 	applyTransform( greenWall, 0, 0, 50, 0, Math.PI, 0 );
 
 	var backWall = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		new THREE.MeshBasicMaterial( {
-			color: wallColor,
-			vertexColors: THREE.VertexColors,
-			wireframe: wireframe,
-			side: THREE.DoubleSide
-		} )
+		wallMaterial
 	)
 	scene.add( backWall );
 	applyTransform( backWall, 50, 0, 0, 0, -Math.PI / 2, 0 );
@@ -173,24 +225,14 @@ function initScene() {
 
 	var box1 = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 30, 31, 30, 3 * tess, 3 * tess, 3 * tess ) ),
-		new THREE.MeshBasicMaterial( {
-			color: wallColor,
-			vertexColors: THREE.VertexColors,
-			side: THREE.DoubleSide,
-			wireframe: wireframe
-		} )
+		wallMaterial
 	)
 	scene.add( box1 );
 	applyTransform( box1, -20, -51 + .5 * 30, 20, 0, -.1, 0 );
 
 	var box2 = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 30, 61, 30, 3 * tess, 6 * tess, 3 * tess ) ),
-		new THREE.MeshBasicMaterial( {
-			color: wallColor,
-			vertexColors: THREE.VertexColors,
-			side: THREE.DoubleSide,
-			wireframe: wireframe
-		} )
+		wallMaterial
 	)
 	scene.add( box2 );
 	applyTransform( box2, 20, -51 + .5 * 60, -20, 0, .1, 0 );
@@ -212,98 +254,77 @@ function initScene() {
 	meshes.push( box1 );
 	meshes.push( box2 );
 
-	computeGI();
+}
+
+function createMaterial( opts ) {
+
+	opts = opts || {};
+
+	return new THREE.RawShaderMaterial( {
+		uniforms: {
+			uColor: { type: 'c', value: new THREE.Color( opts.color ) }
+		},
+		vertexShader: document.getElementById( 'object-vs' ).textContent,
+		fragmentShader: document.getElementById( 'object-fs' ).textContent,
+		side: THREE.DoubleSide
+	});
 
 }
 
 function initScene2() {
 
-	var d = 1;
+	var tess = 3;
+
+	var lightMaterial = createMaterial( { color: 0xffffff } );
 
 	var lightMesh = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 100, 50 ) ),
-		new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } ),
+		lightMaterial
 	)
-	lightMesh.position.set( 20, 40, 20 )
 	scene.add( lightMesh );
 	applyTransform( lightMesh, 20, 40, 60, 0, .5, 0 );
 
 	var light2Mesh = new THREE.Mesh(
-		new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( 5, 3 ) ),
-		new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } )
+		new THREE.BufferGeometry().fromGeometry( new THREE.CylinderGeometry( 5, 5, 60, 32 ) ),
+		lightMaterial
 	)
-	light2Mesh.position.set( -20, 20, -20 )
-	light2Mesh.updateMatrixWorld()
-	light2Mesh.geometry.applyMatrix( light2Mesh.matrixWorld );
-	light2Mesh.position.set( 0, 0, 0 )
 	scene.add( light2Mesh );
+	applyTransform( light2Mesh, -20, 20, -20, .1, 0, .1 );
 
 	var light3Mesh = new THREE.Mesh(
-		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 200, 100 ) ),
-		new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } )
+		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 50, 100 ) ),
+		lightMaterial
 	)
 	light3Mesh.position.set( -40, 80, -40 );
-	light3Mesh.lookAt( scene.position );
-	light3Mesh.updateMatrixWorld()
-	light3Mesh.geometry.applyMatrix( light3Mesh.matrixWorld );
-	light3Mesh.rotation.set( 0, 0, 0 );
-	light3Mesh.position.set( 0, 0, 0 )
 	scene.add( light3Mesh );
+	applyTransform( light3Mesh, -40, 80, -40, .3, .3, 0 );
 
 	var floorMesh = new THREE.Mesh(
-		new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 100, 1, 100, d * 40, 1, d* 40 ) ),
-		new THREE.MeshBasicMaterial( {
-			color: 0xfe6256,
-			vertexColors: THREE.VertexColors,
-			side: THREE.DoubleSide
-		})
+		new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 100, 5, 100, 10 * tess, 1, 10 * tess ) ),
+		createMaterial( { color: 0xfe6256 } )
 	)
-	floorMesh.position.set( 0, 0, 0 );
-	floorMesh.rotation.x = .1;
-	floorMesh.updateMatrixWorld()
-	floorMesh.geometry.applyMatrix( floorMesh.matrixWorld );
 	scene.add( floorMesh );
-	floorMesh.rotation.x = 0;
-	floorMesh.position.set( 0, 0, 0 );
+	applyTransform( floorMesh, 0, -2, 0, .1, 0, 0);
 
 	var ballMesh = new THREE.Mesh(
 		//new THREE.BufferGeometry().fromGeometry( new THREE.CubeGeometry( 20, 20, 20, 10, 10, 10 ) ),
-		new THREE.BufferGeometry().fromGeometry( new THREE.TorusGeometry( 30, 10, d * 20, d * 100 ) ),
-		new THREE.MeshBasicMaterial( {
-			color: 0x78d585,
-			vertexColors: THREE.VertexColors,
-			side: THREE.DoubleSide
-		})
-	)
-	ballMesh.position.set( 0, 0, 0 )
-	ballMesh.updateMatrixWorld()
-	ballMesh.geometry.applyMatrix( ballMesh.matrixWorld );
-	ballMesh.position.set( 0, 0, 0 )
+		new THREE.BufferGeometry().fromGeometry( new THREE.TorusGeometry( 30, 10, tess * 6, tess * 8, Math.PI ) ),
+		createMaterial( { color: 0x78d585 } )
 
+	)
 	scene.add( ballMesh );
+	applyTransform( ballMesh, 0, -2, 0, 0, .1, 0);
 
 	var ball2Mesh = new THREE.Mesh(
-		new THREE.BufferGeometry().fromGeometry( new THREE.CubeGeometry( 10, 40, 20, 10, 10, 10 ) ),
-		new THREE.MeshBasicMaterial( {
-			color: 0x6ac7cf,
-			vertexColors: THREE.VertexColors,
-			side: THREE.DoubleSide
-		})
+		new THREE.BufferGeometry().fromGeometry( new THREE.CubeGeometry( 10, 40, 20, tess * 1, tess * 4, tess * 2 ) ),
+		createMaterial( { color: 0x6ac7cf } )
 	)
-	ball2Mesh.position.set( 20, 20, 20 )
-	ball2Mesh.rotation.set( .1, .2, .3 );
-	ball2Mesh.updateMatrixWorld()
-	ball2Mesh.geometry.applyMatrix( ball2Mesh.matrixWorld );
-	ball2Mesh.rotation.set( 0, 0, 0 );
-	ball2Mesh.position.set( 0, 0, 0 )
-
 	scene.add( ball2Mesh );
+	applyTransform( ball2Mesh, 20, 20, 20, .1, .2, .3 );
 
 	meshes.push( ballMesh );
 	meshes.push( ball2Mesh );
 	meshes.push( floorMesh );
-
-	computeGI();
 
 }
 
@@ -329,7 +350,18 @@ function init() {
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
+	computeObjectGI = initGI();
 	initScene2();
+	total = 0;
+	meshes.forEach( function( m ) {
+		var l = m.geometry.attributes.position.count;
+		ranges.push( { from: total, to: total + l, length: l, mesh: m } )
+		total += l;
+	} );
+	meshColors = meshes.map( function( m ) {
+		return m.material.uniforms.uColor.value.clone()
+	} );
+
 	onWindowResized();
 
 	window.addEventListener( 'resize', onWindowResized );
@@ -350,8 +382,9 @@ function onWindowResized( event ) {
 }
 
 var bounces = 0;
+var maxBounces = 4;
 
-function computeGI() {
+function initGI() {
 
 	var renderRT = new THREE.WebGLRenderTarget( 32, 32, {
 		wrapS: THREE.ClampToEdgeWrapping,
@@ -377,15 +410,18 @@ function computeGI() {
 	var wideCamera = new THREE.PerspectiveCamera( 90, 1, .0001, 100 );
 	var buffer = new Uint8Array( 4 );
 
-	function computeObjectGI( mesh ) {
-
-		mesh.visible = false;
+	function computeObjectGI( mesh, offset, count ) {
 
 		var positions = mesh.geometry.attributes.position.array;
 		var normals = mesh.geometry.attributes.normal.array;
 		var colors = mesh.geometry.attributes.color.array;
 
-		for( var j = 0; j < positions.length; j +=3 ) {
+		var end = Math.min( ( offset + count ) * 3, positions.length );
+		if( offset * 3 >= positions.length ) return true; // we're done
+
+		mesh.visible = false;
+
+		for( var j = offset * 3; j < end; j += 3 ) {
 
 			position.set( positions[ j ], positions[ j + 1 ], positions[ j + 2 ] );
 			normal.set( normals[ j ], normals[ j + 1 ], normals[ j + 2 ] );
@@ -405,19 +441,54 @@ function computeGI() {
 
 		mesh.visible = true;
 
+		return false; // more to process
+
 	}
 
-	var meshColors = meshes.map( function( m ) { return m.material.color.clone() } );
-	if( bounces == 0 ) meshes.forEach( function( m ) { m.material.color.set( 0 ); } );
 
-	meshes.forEach( function( m ) { computeObjectGI( m ); } );
+	return computeObjectGI;
+
+}
+
+function computeGI(){
+
+	startStep();
+	processSamples();
+	endStep();
+
+}
+
+function startStep() {
+
+	if( bounces == 0 ) meshes.forEach( function( m ) { m.material.uniforms.uColor.value.set( 0 ); } );
+
+}
+
+function endStep() {
+
 	meshes.forEach( function( m, id ) {
-		m.geometry.attributes.color.needsUpdate = true;
-		m.material.color.copy( meshColors[ id ] );
-		//m.material.color.set( 0xffffff );
+		m.material.uniforms.uColor.value.copy( meshColors[ id ] );
 	} );
 
-	bounces++;
+}
+
+function processSamples() {
+
+	ranges.forEach( function( r ) {
+		if( ptr >= r.from && ptr < r.to ) {
+			computeObjectGI( r.mesh, ptr - r.from, samples );
+			ptr += Math.min( r.to - ptr, samples );
+		}
+	})
+
+	if( ptr >= total ) {
+		meshes.forEach( function( m, id ) {
+			m.geometry.attributes.color.needsUpdate = true;
+		} );
+		bounces++;
+		ptr = 0;
+		console.log( bounces );
+	}
 
 }
 
@@ -426,6 +497,11 @@ function animate() {
 	requestAnimationFrame( animate );
 
 	controls.update();
+
+	bouncesProgress.textContent = Math.floor( ( bounces / maxBounces ) * 100 ) + '%'
+	samplesProgress.textContent = Math.floor( ( ptr / total ) * 100 ) + '%'
+
+	if( bounces < maxBounces ) computeGI();
 
 	renderer.render( scene, camera );
 
