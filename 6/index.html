@@ -21,7 +21,6 @@
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
-		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/MeshCustomMaterial.js"></script>
 		<script src="../js/EquirectangularToCubemap.js"></script>
 
@@ -32,8 +31,6 @@
 var container, renderer, camera, controls, scene;
 var mesh;
 
-var helper;
-
 var container = document.getElementById( 'container' );
 
 function initScene( id, randomize ) {
@@ -41,39 +38,27 @@ function initScene( id, randomize ) {
 	var ambientLight = new THREE.AmbientLight( 0x000000 );
 	scene.add( ambientLight );
 
-	var light = new THREE.PointLight( 0xffffff, .5, 0 );
-	light.position.set( 50, 200, 0 );
-	light.castShadow = true;
+	var light1 = new THREE.SpotLight( 0xffffff, .5, 1000, 1, .2, .1 );
+	light1.position.set( 50, 400, 0 );
+	light1.castShadow = true;
 
-	scene.add( light );
+	window.light = light1;
+	light1.shadow.mapSize.width = light1.shadow.mapSize.height = 1024;
 
-	var light = new THREE.PointLight( 0xffffff, .5, 0 );
-	light.position.set( -50, 200, 0 );
-	light.castShadow = true;
+	scene.add( light1 );
 
-	scene.add( light );
+	var light2 = new THREE.SpotLight( 0xffffff, .5 );
+	light2.position.set( -50, 200, 0 );
+	light2.castShadow = true;
+
+	light2.shadow.mapSize.width = light2.shadow.mapSize.height = 1024;
+
+	scene.add( light2 );
 
 	var light = new THREE.HemisphereLight( 0xffffbb, 0x080820, .1 );
 	scene.add( light );
 
-	var vs = `#define PHYSICAL
-varying vec3 vViewPosition;
-#ifndef FLAT_SHADED
-	varying vec3 vNormal;
-#endif
-#include <common>
-#include <uv_pars_vertex>
-#include <uv2_pars_vertex>
-#include <displacementmap_pars_vertex>
-#include <color_pars_vertex>
-#include <morphtarget_pars_vertex>
-#include <skinning_pars_vertex>
-#include <shadowmap_pars_vertex>
-#include <specularmap_pars_fragment>
-#include <logdepthbuf_pars_vertex>
-#include <clipping_planes_pars_vertex>
-
-vec3 mod289(vec3 x)
+	var noise = `vec3 mod289(vec3 x)
 {
   return x - floor(x * (1.0 / 289.0)) * 289.0;
 }
@@ -238,14 +223,19 @@ float pnoise(vec3 P, vec3 rep)
 }
 
 uniform float time;
+uniform float distortion;
 
 vec3 calc( vec3 pos ) {
 
-	//return pos;
 	vec3 dir = normalize( pos );
-	return pos + 80. * dir * ( .5 + .5 * pnoise( 1. * normalize( pos ) + time, vec3( 1. ) ) ) +
-		20. * dir * ( .5 + .5 * pnoise( 2. * normalize( pos ) + 2. * time, vec3( 5. ) ) ) +
-		10. * dir * ( .5 + .5 * pnoise( 4. * normalize( pos ) + 4. * time, vec3( 10. ) ) );
+	float freq = .5;
+	float amplitude = 10.;
+	vec3 p = normalize( pos ) + vec3( time, 0., 0. );
+	return pos + 80. * dir + distortion * amplitude * (
+		4. * dir * ( pnoise( freq * 1. * p + time, vec3( 1. ) ) ) +
+		2. * dir * ( pnoise( freq * 2. * p + 2. * time, vec3( 5. ) ) ) +
+		1. * dir * ( pnoise( freq * 4. * p + 4. * time, vec3( 10. ) ) )
+	);
 
 }
 
@@ -257,7 +247,26 @@ vec3 spherical( float r, float theta, float phi ) {
 		sin( phi )
 	);
 
-}
+}`;
+
+	var vs = `#define PHYSICAL
+varying vec3 vViewPosition;
+#ifndef FLAT_SHADED
+	varying vec3 vNormal;
+#endif
+#include <common>
+#include <uv_pars_vertex>
+#include <uv2_pars_vertex>
+#include <displacementmap_pars_vertex>
+#include <color_pars_vertex>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
+#include <shadowmap_pars_vertex>
+#include <specularmap_pars_fragment>
+#include <logdepthbuf_pars_vertex>
+#include <clipping_planes_pars_vertex>
+
+${noise}
 
 void main() {
 	#include <uv_vertex>
@@ -268,16 +277,16 @@ void main() {
 
 	#include <begin_vertex>
 
-	float inc = 0.001;
+	float inc = 0.0001;
 
 	float r = length( position );
-	float theta = atan( position.y, position.x );
-	float phi = acos( position.z / r );
+	float theta = ( uv.x + 0.5 ) * 2. * PI;
+	float phi = -( uv.y + 0.5 ) * PI;
 
 	vec3 np = calc( spherical( r, theta, phi )  );
 	vec3 tangent = calc( spherical( r, theta + inc, phi ) ) - np;
 	vec3 bitangent = calc( spherical( r, theta, phi + inc ) ) - np;
-	transformedNormal = normalize( cross( tangent, bitangent ) );
+	transformedNormal = -normalMatrix * normalize( cross( tangent, bitangent ) );
 
 	vNormal = normalize( transformedNormal );
 
@@ -291,7 +300,64 @@ void main() {
 	#include <shadowmap_vertex>
 }`;
 
-	var geometry = new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( 100, 4 ) );
+var depthVS = `#define DEPTH_PACKING 3200
+#include <common>
+#include <uv_pars_vertex>
+#include <displacementmap_pars_vertex>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
+#include <logdepthbuf_pars_vertex>
+#include <clipping_planes_pars_vertex>
+
+${noise}
+
+void main() {
+	#include <uv_vertex>
+	#include <skinbase_vertex>
+	#include <beginnormal_vertex>
+	#include <defaultnormal_vertex>
+	#include <begin_vertex>
+
+	float r = length( position );
+	float theta = ( uv.x + 0.5 ) * 2. * PI;
+	float phi = -( uv.y + 0.5 ) * PI;
+
+	transformed = calc( spherical( r, theta, phi )  );
+
+	#include <project_vertex>
+	#include <logdepthbuf_vertex>
+	#include <clipping_planes_vertex>
+}`;
+
+var depthFS = `#define DEPTH_PACKING 3200
+#if DEPTH_PACKING == 3200
+	uniform float opacity;
+#endif
+#include <common>
+#include <packing>
+#include <uv_pars_fragment>
+#include <map_pars_fragment>
+#include <alphamap_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+#include <clipping_planes_pars_fragment>
+void main() {
+	#include <clipping_planes_fragment>
+	vec4 diffuseColor = vec4( 1.0 );
+	#if DEPTH_PACKING == 3200
+		diffuseColor.a = opacity;
+	#endif
+	#include <map_fragment>
+	#include <alphamap_fragment>
+	#include <alphatest_fragment>
+	#include <logdepthbuf_fragment>
+	#if DEPTH_PACKING == 3200
+		gl_FragColor = vec4( vec3( gl_FragCoord.z ), opacity );
+	#elif DEPTH_PACKING == 3201
+		gl_FragColor = packDepthToRGBA( gl_FragCoord.z );
+	#endif
+}`;
+
+	var geometry = new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( 1, 5 ) );
 	var material = new MeshCustomMaterial( {
 		vertexShader: vs,
 		fragmentShader: THREE.ShaderChunk.meshphysical_frag,
@@ -304,7 +370,20 @@ void main() {
 		bumpMap: new THREE.TextureLoader().load( '../assets/bathymetry_bw_composite_4k.jpg' ),
 	});
 	mesh = new THREE.Mesh( geometry, material );
-	mesh.castShadow = mesh.receiveShadow = true;
+	mesh.rotation.x = - Math.PI / 2;
+	mesh.castShadow = true;
+	mesh.receiveShadow = !true;
+
+	mesh.customDepthMaterial = new THREE.ShaderMaterial( {
+		uniforms:{
+			time: { type: 't', value: 0 },
+			distortion: { type: 't', value: 0 }
+		},
+		vertexShader: depthVS,
+		fragmentShader: depthFS,
+		depthTest: false,
+		side: THREE.BackSide
+	} );
 
 	var loader = new THREE.TextureLoader();
 	loader.load( '../assets/st_lucia_beach_2k.jpg', function( res ) {
@@ -317,8 +396,8 @@ void main() {
 
 	scene.add( mesh );
 
-	/*var floor = new THREE.Mesh(
-		new THREE.PlaneBufferGeometry( 1000, 1000, ),
+	var floor = new THREE.Mesh(
+		new THREE.PlaneBufferGeometry( 100000, 100000 ),
 		new THREE.MeshStandardMaterial({
 			emissive: 0x808080,
 			roughness: 1
@@ -327,7 +406,7 @@ void main() {
 	floor.receiveShadow = true;
 	floor.rotation.x = - Math.PI / 2;
 	floor.position.y = -150;
-	scene.add( floor );*/
+	scene.add( floor );
 
 }
 
@@ -339,17 +418,19 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 300 );
+	camera.position.set( 26, 92, -213 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
-	renderer = new THREE.WebGLRenderer( { antialias: !true, preserveDrawingBuffer: true } );
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setClearColor( 0xbfbfbf, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	scene.fog = new THREE.FogExp2( 0xbfbfbf, .0025 );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
@@ -379,7 +460,8 @@ function animate() {
 
 	controls.update();
 
-	mesh.material.uniforms.time.value = .0001 * performance.now();
+	mesh.material.uniforms.distortion.value = mesh.customDepthMaterial.uniforms.time.value = 1;
+	mesh.material.uniforms.time.value = mesh.customDepthMaterial.uniforms.time.value = .0001 * performance.now();
 
 	renderer.render( scene, camera );
 
