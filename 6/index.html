@@ -322,7 +322,7 @@ void main() {
 	float theta = ( uv.x + 0.5 ) * 2. * PI;
 	float phi = -( uv.y + 0.5 ) * PI;
 
-	transformed = calc( spherical( r, theta, phi )  );
+	transformed = .95 * calc( spherical( r, theta, phi )  );
 
 	#include <project_vertex>
 	#include <logdepthbuf_vertex>
@@ -372,7 +372,7 @@ void main() {
 	mesh = new THREE.Mesh( geometry, material );
 	mesh.rotation.x = - Math.PI / 2;
 	mesh.castShadow = true;
-	mesh.receiveShadow = !true;
+	mesh.receiveShadow = true;
 
 	mesh.customDepthMaterial = new THREE.ShaderMaterial( {
 		uniforms:{
@@ -382,7 +382,7 @@ void main() {
 		vertexShader: depthVS,
 		fragmentShader: depthFS,
 		depthTest: false,
-		side: THREE.BackSide
+		side: THREE.DoubleSide
 	} );
 
 	var loader = new THREE.TextureLoader();
@@ -410,6 +410,9 @@ void main() {
 
 }
 
+var distortion = 0;
+var nDistortion = 0;
+
 function init() {
 
 	container = document.getElementById( 'container' );
@@ -433,6 +436,10 @@ function init() {
 	scene.fog = new THREE.FogExp2( 0xbfbfbf, .0025 );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	window.addEventListener( 'click', function( e ) {
+		nDistortion +=5;
+	});
 
 	initScene( 'lorenz' );
 	onWindowResized();
@@ -460,7 +467,10 @@ function animate() {
 
 	controls.update();
 
-	mesh.material.uniforms.distortion.value = mesh.customDepthMaterial.uniforms.time.value = 1;
+	distortion += ( nDistortion - distortion ) * .1;
+	nDistortion *= .95;
+
+	mesh.material.uniforms.distortion.value = mesh.customDepthMaterial.uniforms.distortion.value = distortion;
 	mesh.material.uniforms.time.value = mesh.customDepthMaterial.uniforms.time.value = .0001 * performance.now();
 
 	renderer.render( scene, camera );
