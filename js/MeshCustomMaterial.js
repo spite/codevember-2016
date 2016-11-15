@@ -17,7 +17,8 @@ function MeshCustomMaterial (parameters) {
 			roughness: { value: 0 },
 			metalness: { value: 1 },
 			envMapIntensity : { value: 1 },
-			time: { value: 0 }
+			time: { value: 0 },
+			distortion: { value: 0 }
 			}
 		]);
 
