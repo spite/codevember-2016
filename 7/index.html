@@ -32,17 +32,24 @@
 precision highp float;
 
 attribute vec3 position;
+attribute vec3 normal;
 attribute vec3 color;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
+uniform mat3 normalMatrix;
+uniform float uCheck;
 
 varying vec3 vColor;
 
 void main() {
 
+	vec4 mvPosition = modelViewMatrix * vec4( position, 1. );
+	float d = dot( normalize( normalMatrix * normal ), normalize( -mvPosition.xyz ) );
 	vColor = color;
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+	if( uCheck == 1. && d < 0. ) vColor = vec3( 0. );
+
+	gl_Position = projectionMatrix * mvPosition;
 
 }
 
@@ -147,46 +154,25 @@ function initScene() {
 	var tess = 2;
 	var wireframe = !true
 
-	var wallColor = new THREE.Color( .7295, .7355, .729 );
+	var wallColor = 0xbababa;
 
-	var floorMaterial = new THREE.MeshBasicMaterial( {
-		color: 0xffffff,
-		vertexColors: THREE.VertexColors,
-		wireframe: wireframe,
-		side: THREE.DoubleSide
-	} )
-
-	var wallMaterial = new THREE.MeshBasicMaterial( {
-		color: wallColor,
-		vertexColors: THREE.VertexColors,
-		wireframe: wireframe,
-		side: THREE.DoubleSide
-	} )
-
-	var redMaterial = new THREE.MeshBasicMaterial( {
-		color: new THREE.Color( .611, .0555, .062 ),
-		vertexColors: THREE.VertexColors,
-		wireframe: wireframe,
-		side: THREE.DoubleSide
-	} )
-
-	var greenMaterial = new THREE.MeshBasicMaterial( {
-		color: new THREE.Color( .117, .4125, .115 ),
-		vertexColors: THREE.VertexColors,
-		wireframe: wireframe,
-		side: THREE.DoubleSide
-	} )
+	var lightMaterial = createMaterial( { color: 0xffffff } );
+	var wallMaterial = createMaterial( { color: wallColor } );
+	var boxMaterial = createMaterial( { color: wallColor } );
+	var redMaterial = createMaterial( { color: 0x9c0e10 } );
+	var greenMaterial = createMaterial( { color: 0x1e691e } );
+	wallMaterial.side = THREE.FrontSide;
 
 	var floor = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		floorMaterial
+		wallMaterial
 	)
 	scene.add( floor );
 	applyTransform( floor, 0, -50, 0, -Math.PI / 2, 0, 0 );
 
 	var ceiling = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		wallMaterial
+		lightMaterial
 	)
 	scene.add( ceiling );
 	applyTransform( ceiling, 0, 50, 0, Math.PI / 2, 0, 0 );
@@ -214,38 +200,34 @@ function initScene() {
 
 	var frontWall = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.PlaneGeometry( 110, 110, 10 * tess, 10 * tess  ) ),
-		new THREE.MeshBasicMaterial( {
-			color: wallColor,
-			vertexColors: THREE.VertexColors,
-			wireframe: wireframe
-		} )
+		wallMaterial
 	)
 	scene.add( frontWall );
 	applyTransform( frontWall, -50, 0, 0, 0, Math.PI / 2, 0 );
 
 	var box1 = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 30, 31, 30, 3 * tess, 3 * tess, 3 * tess ) ),
-		wallMaterial
+		boxMaterial
 	)
 	scene.add( box1 );
 	applyTransform( box1, -20, -51 + .5 * 30, 20, 0, -.1, 0 );
 
 	var box2 = new THREE.Mesh(
 		new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 30, 61, 30, 3 * tess, 6 * tess, 3 * tess ) ),
-		wallMaterial
+		boxMaterial
 	)
 	scene.add( box2 );
 	applyTransform( box2, 20, -51 + .5 * 60, -20, 0, .1, 0 );
 
 	var light = new THREE.Mesh(
-		new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 40, 5, 20 ) ),
-		new THREE.MeshBasicMaterial( { color: 0xffffff } )
+		new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( 20, 4 ) ),
+		lightMaterial
 	)
 	scene.add( light );
-	applyTransform( light, 20, 40, 20, .1, .2, .3 );
+	applyTransform( light, -30, -30, -30, 0, 0, 0 );
 
-	//meshes.push( floor );
-	meshes.push( ceiling );
+	meshes.push( floor );
+	//meshes.push( ceiling );
 	meshes.push( redWall );
 	meshes.push( greenWall );
 	meshes.push( backWall );
@@ -262,6 +244,7 @@ function createMaterial( opts ) {
 
 	return new THREE.RawShaderMaterial( {
 		uniforms: {
+			uCheck: { type: 'f', value: 0 },
 			uColor: { type: 'c', value: new THREE.Color( opts.color ) }
 		},
 		vertexShader: document.getElementById( 'object-vs' ).textContent,
@@ -336,7 +319,7 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( -30, 100, 100 );
+	camera.position.set( -142, -5, 22 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
@@ -351,7 +334,7 @@ function init() {
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
 	computeObjectGI = initGI();
-	initScene2();
+	initScene();
 	total = 0;
 	meshes.forEach( function( m ) {
 		var l = m.geometry.attributes.position.count;
@@ -366,6 +349,7 @@ function init() {
 
 	window.addEventListener( 'resize', onWindowResized );
 
+	startTime = performance.now();
 	animate();
 
 }
@@ -383,6 +367,7 @@ function onWindowResized( event ) {
 
 var bounces = 0;
 var maxBounces = 4;
+var startTime = 0;
 
 function initGI() {
 
@@ -460,7 +445,10 @@ function computeGI(){
 
 function startStep() {
 
-	if( bounces == 0 ) meshes.forEach( function( m ) { m.material.uniforms.uColor.value.set( 0 ); } );
+	if( bounces == 0 ) meshes.forEach( function( m ) {
+		m.material.uniforms.uColor.value.set( 0 );
+		m.material.uniforms.uCheck.value = 1;
+	} );
 
 }
 
@@ -468,6 +456,7 @@ function endStep() {
 
 	meshes.forEach( function( m, id ) {
 		m.material.uniforms.uColor.value.copy( meshColors[ id ] );
+		m.material.uniforms.uCheck.value = 0;
 	} );
 
 }
@@ -485,6 +474,8 @@ function processSamples() {
 		meshes.forEach( function( m, id ) {
 			m.geometry.attributes.color.needsUpdate = true;
 		} );
+		console.log( performance.now() - startTime );
+		startTime = performance.now();
 		bounces++;
 		ptr = 0;
 		console.log( bounces );
