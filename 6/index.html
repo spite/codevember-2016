@@ -241,10 +241,21 @@ uniform float time;
 
 vec3 calc( vec3 pos ) {
 
+	//return pos;
 	vec3 dir = normalize( pos );
-	return 80. * dir * ( .5 + .5 * pnoise( 1. * normalize( pos ) + time, vec3( 1. ) ) ) +
+	return pos + 80. * dir * ( .5 + .5 * pnoise( 1. * normalize( pos ) + time, vec3( 1. ) ) ) +
 		20. * dir * ( .5 + .5 * pnoise( 2. * normalize( pos ) + 2. * time, vec3( 5. ) ) ) +
 		10. * dir * ( .5 + .5 * pnoise( 4. * normalize( pos ) + 4. * time, vec3( 10. ) ) );
+
+}
+
+vec3 spherical( float r, float theta, float phi ) {
+
+	return r * vec3(
+		cos( theta ) * cos( phi ),
+		sin( theta ) * cos( phi ),
+		sin( phi )
+	);
 
 }
 
@@ -257,17 +268,21 @@ void main() {
 
 	#include <begin_vertex>
 
-	float theta = 0.01;
+	float inc = 0.001;
 
-	vec3 np = calc( normalize( transformed ) );
-	vec3 tangent = calc( normalize( transformed + vec3( theta, 0., 0. ) ) ) - np;
-	vec3 bitangent = calc( normalize( transformed + vec3( 0., theta, 0. ) ) ) - np;
-	transformedNormal = normalize(cross(tangent, bitangent));
-	transformedNormal = normalMatrix * transformedNormal;
+	float r = length( position );
+	float theta = atan( position.y, position.x );
+	float phi = acos( position.z / r );
+
+	vec3 np = calc( spherical( r, theta, phi )  );
+	vec3 tangent = calc( spherical( r, theta + inc, phi ) ) - np;
+	vec3 bitangent = calc( spherical( r, theta, phi + inc ) ) - np;
+	transformedNormal = normalize( cross( tangent, bitangent ) );
 
 	vNormal = normalize( transformedNormal );
 
-	transformed = transformed + calc( transformed );
+	transformed = np;
+
 	#include <project_vertex>
 	#include <logdepthbuf_vertex>
 	#include <clipping_planes_vertex>
