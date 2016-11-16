@@ -12,14 +12,7 @@ function MeshCustomMaterial (parameters) {
 		THREE.UniformsLib.metalnessmap,
 		THREE.UniformsLib.fog,
 		THREE.UniformsLib.lights,
-		{
-			emissive : { value: new THREE.Color( 0x000000 ) },
-			roughness: { value: 0 },
-			metalness: { value: 1 },
-			envMapIntensity : { value: 1 },
-			time: { value: 0 },
-			distortion: { value: 0 }
-			}
+		parameters.u
 		]);
 
 	this.vertexShader = parameters.vertexShader;
