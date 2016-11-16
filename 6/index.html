@@ -359,11 +359,20 @@ void main() {
 
 	var geometry = new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( 1, 5 ) );
 	var material = new MeshCustomMaterial( {
+		u: {
+			emissive : { value: new THREE.Color( 0x000000 ) },
+			roughness: { value: .5 },
+			metalness: { value: 1 },
+			envMapIntensity : { value: 1 },
+			distortion: { value: 0 },
+			time: { value: 0 }
+		},
 		vertexShader: vs,
 		fragmentShader: THREE.ShaderChunk.meshphysical_frag,
 		wireframe: !true,
 		roughness: .8,
 		metalness: .1,
+		//map: new THREE.TextureLoader().load( '../assets/world.topo.200412.3x5400x2700.jpg' ),
 		roughnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_gloss_4k.jpg' ),
 		metalnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse_4k.jpg' ),
 		bumpMap: new THREE.TextureLoader().load( '../assets/bathymetry_bw_composite_4k.jpg' ),
