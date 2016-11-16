@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 	<head>
-		<title>GI</title>
+		<title>(Very) Poor Man's Global Illumination</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
@@ -14,7 +14,7 @@
 		<div id="container"></div>
 		<div id="info" >
 			<p><a href="../6" >Previous</a> | <a href="../8" >Next</a></p>
-			<h1>7. GI</h1>
+			<h1>7. (Very) Poor Man's Global Illumination</h1>
 			<div id="progress">
 				<p>Bounces progress: <span id="bouncesProgress" ></span></p>
 				<p>Samples progress: <span id="samplesProgress" ></span></p>
@@ -116,8 +116,7 @@ void main() {
 
 <script>
 
-// http://archillect.com/93970
-// https://www.shadertoy.com/view/ldl3W8#
+// http://www.iquilezles.org/www/articles/simplegi/simplegi.htm
 
 'use strict';
 
