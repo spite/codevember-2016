@@ -35,7 +35,7 @@ var container = document.getElementById( 'container' );
 
 function initScene( id, randomize ) {
 
-	var ambientLight = new THREE.AmbientLight( 0x000000 );
+	var ambientLight = new THREE.AmbientLight( 0x202020 );
 	scene.add( ambientLight );
 
 	var light1 = new THREE.SpotLight( 0xffffff, .5, 1000, 1, .2, .1 );
@@ -54,9 +54,6 @@ function initScene( id, randomize ) {
 	light2.shadow.mapSize.width = light2.shadow.mapSize.height = 1024;
 
 	scene.add( light2 );
-
-	var light = new THREE.HemisphereLight( 0xffffbb, 0x080820, .1 );
-	scene.add( light );
 
 	var noise = `vec3 mod289(vec3 x)
 {
@@ -300,7 +297,7 @@ void main() {
 	#include <shadowmap_vertex>
 }`;
 
-var depthVS = `#define DEPTH_PACKING 3200
+var depthVS = `#define DEPTH_PACKING 3201
 #include <common>
 #include <uv_pars_vertex>
 #include <displacementmap_pars_vertex>
@@ -322,14 +319,14 @@ void main() {
 	float theta = ( uv.x + 0.5 ) * 2. * PI;
 	float phi = -( uv.y + 0.5 ) * PI;
 
-	transformed = .95 * calc( spherical( r, theta, phi )  );
+	transformed = 1. * calc( spherical( r, theta, phi )  );
 
 	#include <project_vertex>
 	#include <logdepthbuf_vertex>
 	#include <clipping_planes_vertex>
 }`;
 
-var depthFS = `#define DEPTH_PACKING 3200
+var depthFS = `#define DEPTH_PACKING 3201
 #if DEPTH_PACKING == 3200
 	uniform float opacity;
 #endif
@@ -362,35 +359,38 @@ void main() {
 		vertexShader: vs,
 		fragmentShader: THREE.ShaderChunk.meshphysical_frag,
 		wireframe: !true,
-		roughness: 1,
+		roughness: .8,
 		metalness: 0,
-		map: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse_4k.jpg' ),
+		//map: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse_4k.jpg' ),
 		roughnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_gloss_4k.jpg' ),
 		metalnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse_4k.jpg' ),
 		bumpMap: new THREE.TextureLoader().load( '../assets/bathymetry_bw_composite_4k.jpg' ),
+		//envMapIntensity: .2
 	});
-	mesh = new THREE.Mesh( geometry, material );
-	mesh.rotation.x = - Math.PI / 2;
-	mesh.castShadow = true;
-	mesh.receiveShadow = true;
 
-	mesh.customDepthMaterial = new THREE.ShaderMaterial( {
+	var depthMaterial = new THREE.ShaderMaterial( {
 		uniforms:{
 			time: { type: 't', value: 0 },
 			distortion: { type: 't', value: 0 }
 		},
 		vertexShader: depthVS,
 		fragmentShader: depthFS,
-		depthTest: false,
 		side: THREE.DoubleSide
 	} );
+
+	mesh = new THREE.Mesh( geometry, material );
+	mesh.rotation.x = - Math.PI / 2;
+	mesh.castShadow = true;
+	mesh.receiveShadow = true;
+
+	mesh.customDepthMaterial = depthMaterial;
 
 	var loader = new THREE.TextureLoader();
 	loader.load( '../assets/st_lucia_beach_2k.jpg', function( res ) {
 
 		var equiToCube = new EquirectangularToCubemap( renderer );
-		material.envMap = equiToCube.convert( res, 1024 );
-		material.needsUpdate = true;
+		//material.envMap = equiToCube.convert( res, 1024 );
+		//material.needsUpdate = true;
 
 	});
 
