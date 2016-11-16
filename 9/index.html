@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Street View PBR</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../8" >Previous</a> | <a href="../10" >Next</a></p>
+			<h1>9. Street View PBR</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/PanomNom.min.js"></script>
+		<script src="../js/MeshCustomMaterial.js"></script>
+		<script src="../js/EquirectangularToCubemap.js"></script>
+		<script src="//maps.google.com/maps/api/js?key=AIzaSyDQ6D_BYd-oL3lSprEPPCF2u0MtHX9MO9k"></script>
+
+<script>
+
+// https://twitter.com/archillect/status/797043706490720256
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh, bkg;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function initScene() {
+
+	return new Promise( function( resolve, reject ) {
+
+	var light1 = new THREE.SpotLight( 0xff00ff, 1, 100, 1, .02, .1 );
+	light1.position.set( 0, 40, 0 );
+	light1.castShadow = true;
+	light1.shadow.mapSize.width = light1.shadow.mapSize.height = 1024;
+	scene.add( light1 );
+
+	var fs =`#define PHYSICAL
+uniform vec3 diffuse;
+uniform vec3 emissive;
+uniform float roughness;
+uniform float metalness;
+uniform float opacity;
+#ifndef STANDARD
+	uniform float clearCoat;
+	uniform float clearCoatRoughness;
+#endif
+uniform float envMapIntensity;
+varying vec3 vViewPosition;
+#ifndef FLAT_SHADED
+	varying vec3 vNormal;
+#endif
+#include <common>
+#include <packing>
+#include <color_pars_fragment>
+#include <uv_pars_fragment>
+#include <uv2_pars_fragment>
+#include <map_pars_fragment>
+#include <alphamap_pars_fragment>
+#include <lightmap_pars_fragment>
+#include <emissivemap_pars_fragment>
+#include <envmap_pars_fragment>
+#include <fog_pars_fragment>
+#include <bsdfs>
+#include <cube_uv_reflection_fragment>
+#include <lights_pars>
+#include <lights_physical_pars_fragment>
+#include <shadowmap_pars_fragment>
+#include <bumpmap_pars_fragment>
+#include <normalmap_pars_fragment>
+#include <roughnessmap_pars_fragment>
+#include <metalnessmap_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+#include <clipping_planes_pars_fragment>
+
+uniform sampler2D panoMap;
+
+vec2 normalToUV( vec3 n ) {
+
+	vec3 normal = normalize( n );
+	float lon = .5 + atan( normal.z, normal.x ) / ( 2. * PI );
+	float lat = .5 + atan( -normal.y, length( normal.xz ) ) / PI;
+
+	vec2 uv = vec2( lon, lat );
+
+    return uv;
+
+}
+
+void main() {
+	#include <clipping_planes_fragment>
+	vec4 diffuseColor = vec4( diffuse, opacity );
+	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+	vec3 totalEmissiveRadiance = emissive;
+	#include <logdepthbuf_fragment>
+	#include <map_fragment>
+	#include <color_fragment>
+	#include <alphamap_fragment>
+	#include <alphatest_fragment>
+	#include <specularmap_fragment>
+	#include <roughnessmap_fragment>
+	#include <metalnessmap_fragment>
+	#include <normal_flip>
+	#include <normal_fragment>
+	#include <emissivemap_fragment>
+	#include <lights_physical_fragment>
+
+	GeometricContext geometry;
+geometry.position = - vViewPosition;
+geometry.normal = normal;
+geometry.viewDir = normalize( vViewPosition );
+IncidentLight directLight;
+
+vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
+	vec3 n = refract( -geometry.viewDir, worldNormal, 0. );
+	vec2 vUvDiffuse = normalToUV( n );
+	vec3 panoDiffuse = 2. * texture2D( panoMap, vUvDiffuse, 4. ).rgb;
+
+#if ( NUM_SPOT_LIGHTS > 0 ) && defined( RE_Direct )
+	SpotLight spotLight;
+	for ( int i = 0; i < NUM_SPOT_LIGHTS; i ++ ) {
+		spotLight = spotLights[ i ];
+		getSpotDirectLightIrradiance( spotLight, geometry, directLight );
+		#ifdef USE_SHADOWMAP
+		directLight.color = panoDiffuse;
+		directLight.color *= all( bvec2( spotLight.shadow, directLight.visible ) ) ? panoDiffuse * vec3( getShadow( spotShadowMap[ i ], spotLight.shadowMapSize, spotLight.shadowBias, spotLight.shadowRadius, vSpotShadowCoord[ i ] ) ) : vec3( 1.0 );
+		#endif
+	}
+		RE_Direct( directLight, geometry, material, reflectedLight );
+
+#endif
+
+#if defined( RE_IndirectDiffuse )
+	vec3 irradiance = getAmbientLightIrradiance( ambientLightColor );
+	#ifdef USE_LIGHTMAP
+		vec3 lightMapIrradiance = texture2D( lightMap, vUv2 ).xyz * lightMapIntensity;
+		#ifndef PHYSICALLY_CORRECT_LIGHTS
+			lightMapIrradiance *= PI;
+		#endif
+		irradiance += lightMapIrradiance;
+	#endif
+	#if ( NUM_HEMI_LIGHTS > 0 )
+		for ( int i = 0; i < NUM_HEMI_LIGHTS; i ++ ) {
+			irradiance += getHemisphereLightIrradiance( hemisphereLights[ i ], geometry );
+		}
+	#endif
+	#if defined( USE_ENVMAP ) && defined( PHYSICAL ) && defined( ENVMAP_TYPE_CUBE_UV )
+	 	irradiance += getLightProbeIndirectIrradiance( geometry, 8 );
+	#endif
+	RE_IndirectDiffuse( irradiance, geometry, material, reflectedLight );
+#endif
+
+#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )
+	vec3 radiance = getLightProbeIndirectRadiance( geometry, Material_BlinnShininessExponent( material ), 8 );
+	#ifndef STANDARD
+		vec3 clearCoatRadiance = getLightProbeIndirectRadiance( geometry, Material_ClearCoat_BlinnShininessExponent( material ), 8 );
+	#else
+		vec3 clearCoatRadiance = vec3( 0.0 );
+	#endif
+
+	RE_IndirectSpecular( radiance, clearCoatRadiance, geometry, material, reflectedLight );
+#endif
+
+	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;
+
+	gl_FragColor = vec4( outgoingLight, diffuseColor.a );
+	#include <premultiplied_alpha_fragment>
+	#include <tonemapping_fragment>
+	#include <encodings_fragment>
+	#include <fog_fragment>
+}`;
+
+	var location = new google.maps.LatLng( 51.50700703827454 + Maf.randomInRange( -.1, .1 ) ,-0.12791916931155356 + Maf.randomInRange( -.1, .1 )  );
+	//location = new google.maps.LatLng( 41.3850639,2.1734034999999494);
+
+	var loader = new PANOMNOM.GoogleStreetViewLoader();
+
+	loader.addEventListener( 'error', function( res ) {
+		console.log( res );
+		reject( res );
+	});
+
+	loader.addEventListener( 'load', function() {
+
+		var tex = new THREE.Texture( this.canvas );
+		tex.needsUpdate = true;
+
+		var equiToCube = new EquirectangularToCubemap( renderer );
+		var panoTex = equiToCube.convert( tex, 1024 );
+
+		var material = new MeshCustomMaterial( {
+				u: {
+					emissive : { value: new THREE.Color( 0x000000 ) },
+					roughness: { value: .5 },
+					metalness: { value: 1 },
+					envMapIntensity : { value: 1 },
+					panoMap : { value: new THREE.Texture() }
+				},
+				vertexShader: THREE.ShaderChunk.meshphysical_vert,
+				fragmentShader: fs,//THREE.ShaderChunk.meshphysical_frag,
+				metalness: .5,
+				roughness: 1,
+				map: new THREE.TextureLoader().load( '../assets/pattern_09/diffuse.png' ),
+				normalMap: new THREE.TextureLoader().load( '../assets/pattern_09/normal.png' ),
+				bumpMap: new THREE.TextureLoader().load( '../assets/pattern_09/height.png' ),
+				roughnessMap: new THREE.TextureLoader().load( '../assets/pattern_09/specular.png' ),
+				envMap: panoTex
+			}
+		);
+
+		var geometry = new THREE.IcosahedronGeometry( 10, 3 );
+		geometry = new THREE.TorusKnotBufferGeometry( 10, 3, 200, 36 );
+		geometry.addAttribute( 'uv2', new THREE.BufferAttribute( geometry.attributes.uv.array, 2 ) );
+
+		[ material.map, material.normalMap, material.bumpMap, material.roughnessMap ].forEach( function( map ) {
+			if( map ) {
+				map.repeat.set( 10, 1 );
+				map.wrapS = map.wrapT = THREE.RepeatWrapping;
+			}
+		})
+
+		material.uniforms.panoMap.value = tex;
+
+		mesh = new THREE.Mesh( geometry, material );
+		scene.add( mesh );
+		mesh.castShadow = mesh.receiveShadow = true;
+
+		bkg = new THREE.Mesh( new THREE.IcosahedronGeometry( 100, 5 ), new THREE.MeshBasicMaterial( { side: THREE.BackSide }) );
+		scene.add( bkg );
+
+		bkg.material.map = tex;
+		bkg.material.needsUpdate = true;
+
+		resolve()
+
+	});
+	loader.loadFromLocation( location, 1 );
+
+});
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 20 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	onWindowResized();
+	window.addEventListener( 'resize', onWindowResized );
+
+	initScene().then( animate )
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+//	mesh.rotation.y += .01;
+//	mesh.rotation.x += .001;
+
+	bkg.position.copy( camera.position );
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
