@@ -47,8 +47,8 @@ function initScene( id, randomize ) {
 
 	scene.add( light1 );
 
-	var light2 = new THREE.SpotLight( 0xffffff, .5 );
-	light2.position.set( -50, 200, 0 );
+	var light2 = new THREE.SpotLight( 0xffffff, .5, 1000, 1, .2, .1 );
+	light2.position.set( -100, 200, 40 );
 	light2.castShadow = true;
 
 	light2.shadow.mapSize.width = light2.shadow.mapSize.height = 1024;
@@ -228,10 +228,13 @@ vec3 calc( vec3 pos ) {
 	float freq = .5;
 	float amplitude = 10.;
 	vec3 p = normalize( pos ) + vec3( time, 0., 0. );
-	return pos + 80. * dir + distortion * amplitude * (
-		4. * dir * ( pnoise( freq * 1. * p + time, vec3( 1. ) ) ) +
-		2. * dir * ( pnoise( freq * 2. * p + 2. * time, vec3( 5. ) ) ) +
-		1. * dir * ( pnoise( freq * 4. * p + 4. * time, vec3( 10. ) ) )
+	return pos +
+		80. * dir +
+		distortion * amplitude * dir * (
+			4. * ( pnoise( freq * 1. * p + time, vec3( 1. ) ) ) +
+			2. * ( pnoise( freq * 2. * p + 2. * time, vec3( 5. ) ) ) +
+			1. * ( pnoise( freq * 4. * p + 4. * time, vec3( 10. ) )
+		)
 	);
 
 }
@@ -360,12 +363,10 @@ void main() {
 		fragmentShader: THREE.ShaderChunk.meshphysical_frag,
 		wireframe: !true,
 		roughness: .8,
-		metalness: 0,
-		//map: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse_4k.jpg' ),
+		metalness: .1,
 		roughnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_gloss_4k.jpg' ),
 		metalnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse_4k.jpg' ),
 		bumpMap: new THREE.TextureLoader().load( '../assets/bathymetry_bw_composite_4k.jpg' ),
-		//envMapIntensity: .2
 	});
 
 	var depthMaterial = new THREE.ShaderMaterial( {
@@ -375,7 +376,7 @@ void main() {
 		},
 		vertexShader: depthVS,
 		fragmentShader: depthFS,
-		side: THREE.DoubleSide
+		side: THREE.BackSide
 	} );
 
 	mesh = new THREE.Mesh( geometry, material );
@@ -389,8 +390,9 @@ void main() {
 	loader.load( '../assets/st_lucia_beach_2k.jpg', function( res ) {
 
 		var equiToCube = new EquirectangularToCubemap( renderer );
-		//material.envMap = equiToCube.convert( res, 1024 );
-		//material.needsUpdate = true;
+		material.envMap = equiToCube.convert( res, 1024 );
+		material.envMapIntensity = 1;
+		material.needsUpdate = true;
 
 	});
 
@@ -438,13 +440,17 @@ function init() {
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
 	window.addEventListener( 'click', function( e ) {
-		nDistortion +=5;
+		nDistortion += 5;
 	});
 
 	initScene( 'lorenz' );
 	onWindowResized();
 
 	window.addEventListener( 'resize', onWindowResized );
+
+	window.addEventListener( 'keydown', function( e ) {
+		if( e.keyCode === 32 ) run = !run;
+	} );
 
 	animate();
 
@@ -461,19 +467,37 @@ function onWindowResized( event ) {
 
 }
 
+var run = true;
+var t = performance.now();
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
 	controls.update();
 
-	distortion += ( nDistortion - distortion ) * .1;
-	nDistortion *= .95;
+	var ct = performance.now();
+	var dt = ct - ot;
+	dt *= 2.;
 
-	mesh.material.uniforms.distortion.value = mesh.customDepthMaterial.uniforms.distortion.value = distortion;
-	mesh.material.uniforms.time.value = mesh.customDepthMaterial.uniforms.time.value = .0001 * performance.now();
+	if( run ) {
+
+		t += dt;
+
+		var delta = dt / ( 1000 / 60 );
+		distortion += ( nDistortion - distortion ) * Math.pow( 0.1, delta );
+		nDistortion *= Math.pow( 0.95, delta );
+
+		mesh.material.uniforms.distortion.value = mesh.customDepthMaterial.uniforms.distortion.value = distortion;
+		mesh.material.uniforms.time.value = mesh.customDepthMaterial.uniforms.time.value = .0001 * t;
+	}
+
+	mesh.rotation.x += .00001 * dt;
 
 	renderer.render( scene, camera );
+
+	ot = ct;
 
 }
 
