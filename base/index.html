@@ -37,7 +37,7 @@ var helper;
 
 var container = document.getElementById( 'container' );
 
-function initScene( id, randomize ) {
+function initScene() {
 }
 
 function init() {
@@ -62,7 +62,7 @@ function init() {
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
-	initScene( 'lorenz' );
+	initScene();
 	onWindowResized();
 
 	window.addEventListener( 'resize', onWindowResized );
