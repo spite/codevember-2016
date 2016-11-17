@@ -24,6 +24,8 @@ function OdeoSoundCloudPlayer( id, odeo ) {
 
 OdeoSoundCloudPlayer.prototype.getSong = function( songURL ) {
 
+	this.audio.play();
+
 	SC.resolve( songURL ).then( function( song ){
 
 		console.log( song );
