@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Odeo</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../9" >Previous</a> | <a href="../11" >Next</a></p>
+			<h1>10. Odeo</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+
+		<script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
+		<script src="../js/Odeo.js"></script>
+		<script src="../js/Kick.js"></script>
+
+<script type="x-shader/x-vertex" id="particles-vs" >
+precision highp float;
+
+attribute vec3 position;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform vec3 uTint;
+uniform sampler2D uPalette;
+
+varying vec3 vColor;
+
+const float PI = 3.14159265359;
+
+void main() {
+
+	float h = position.y;
+
+	vec3 p = position;
+	float a = ( -position.z * 2. * PI );
+	float r = 1. - p.x;
+	p.y -= .1 * a;
+	p.x = r * cos( a );
+	p.z = r * sin( a );
+
+	vColor = uTint * texture2D( uPalette, vec2( 1. - h, .5 ) ).rgb;
+
+	p = p * vec3( 100., 40., 100. );
+
+	vec4 mvPosition = modelViewMatrix * vec4( p, 1.0 );
+    gl_PointSize = r * 10. * ( 300.0 / length( mvPosition.xyz ) );
+
+	gl_Position = projectionMatrix * mvPosition;
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="particles-fs" >
+precision highp float;
+
+varying vec3 vColor;
+
+void main() {
+
+	float d = 1. - 2. * length( .5 - gl_PointCoord );
+	float a = smoothstep( 0., .1, d );
+	if( a <= 0. ) discard;
+	gl_FragColor = vec4( vColor * ( .75 + .25 * d ), 1. );
+
+}
+</script>
+
+
+<script>
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+var odeo = new Odeo( {
+	soundCloudId: 'b1275b704badf79d972d51aa4b92ea15'
+} );
+odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
+//odeo.useMicrophone();
+//odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
+//odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
+
+var kickIsOn = false;
+var lastKickTime = 0;
+
+var kick = new Kick({
+	frequency: [ 5, 20 ],
+	decay: 0.04,
+	onKick: function() {
+		var t = performance.now();
+		var dt = t - lastKickTime;
+		if( !kickIsOn && dt > 2000 ) {
+			switchCamera();
+			kickIsOn = true;
+			lastKickTime = t;
+		}
+	},
+	offKick: function() {
+		kickIsOn = false;
+	}
+}, odeo.frequencyData );
+//kick.on();
+
+var cameraPositions = [
+	new THREE.Vector3( 60, 160, 220 ),
+	new THREE.Vector3( 82, 216, 155 ),
+	new THREE.Vector3( -260, 15, 85 ),
+	new THREE.Vector3( -53, 228, 0 ),
+	new THREE.Vector3( 140, 243, 55 ),
+	new THREE.Vector3( -6, 210, 175 ),
+	new THREE.Vector3( 97, 13, 2 ),
+	new THREE.Vector3( 60, 24, 7 ),
+];
+
+function switchCamera() {
+
+	camera.position.copy( cameraPositions[ Math.floor( Math.random() * cameraPositions.length ) ] );
+	camera.lookAt( scene.position );
+
+}
+
+function initScene() {
+
+	var particles = 128 * 128;
+	var geometry = new THREE.BufferGeometry();
+	var positions = new Float32Array( particles * 3 );
+
+	var ptr = 0;
+	for ( var y = 0; y < 128; y ++ ) {
+		for ( var x = 0; x < 128; x ++ ) {
+			positions[ ptr ]     = ( x - 64 ) / 128;
+			positions[ ptr + 1 ] = 0;
+			positions[ ptr + 2 ] = ( y - 64 ) / 128;
+			ptr += 3;
+		}
+	}
+
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	geometry.computeBoundingSphere();
+
+	var material = new THREE.PointsMaterial( { size: 1, transparent: true, opacity: .5 } );
+	var material = new THREE.RawShaderMaterial( {
+		uniforms: {
+			uTint: { type: 'c', value: new THREE.Color( 0xffffff ) },
+			uPalette: { type: 't', value: new THREE.TextureLoader().load( '../assets/palette.png' ) }
+		},
+		vertexShader: document.getElementById( 'particles-vs' ).textContent,
+		fragmentShader: document.getElementById( 'particles-fs' ).textContent,
+		transparent: false
+	} );
+	mesh = new THREE.Points( geometry, material );
+	scene.add( mesh );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+
+	camera.position.set( 140, 243, 55 );
+
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+	odeo.update();
+	kick.onUpdate();
+
+	var ptr = 0;
+	for( var y = 0; y < 128 - 1; y++ ) {
+		for ( var x = 0; x < 128; x++ ) {
+			mesh.geometry.attributes.position.array[ ptr + 1 ] = mesh.geometry.attributes.position.array[ ptr + 128 * 3 + 1 ] * .99
+			ptr += 3;
+		}
+	}
+	for ( var x = 0; x < 128; x++ ) {
+		mesh.geometry.attributes.position.array[ ptr + x * 3 + 1 ] = odeo.frequencyData[ x ] / 255;
+	}
+	mesh.geometry.attributes.position.needsUpdate = true;
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
