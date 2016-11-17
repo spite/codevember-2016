@@ -16,6 +16,8 @@
 			<p><a href="../2" >Next</a></p>
 			<h1>1. Segmented Torus</h1>
 			<p>The original idea was to procedurally create a wood texture, it ended up being the base for building ShaderTexture, a THREE.Texture that helps creating procedural textures using fragment shaders.</p>
+			<p>This example uses <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy to generate textures.</p>
+			<p>Press <b>space</b> to generate a new texture.</p>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -195,7 +197,82 @@ void main(void) {
 }
 </script>
 
+<script type="x-shader/x-fragment" id="tiles-fs" >
+precision highp float;
+
+uniform vec2 dimensions;
+uniform float seed;
+
+varying vec2 vUv;
+
+// a variant from jt's https://www.shadertoy.com/view/4st3R7
+// beside code golfing, main difference is s + S
+
+float hash( float n ) { return fract(sin(n)*753.5453123); }
+float noise( in vec3 x )
+{
+	vec3 p = floor(x);
+	vec3 f = fract(x);
+	f = f*f*(3.0-2.0*f);
+
+	float n = p.x + p.y*157.0 + 113.0*p.z;
+	return mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
+	               mix( hash(n+157.0), hash(n+158.0),f.x),f.y),
+	mix(mix( hash(n+113.0), hash(n+114.0),f.x),
+	    mix( hash(n+270.0), hash(n+271.0),f.x),f.y),f.z);
+}
+#define mirror(v) abs(2. * fract(v / 2.) - 1.)
+
+float rnd(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+    //return noise( vec3( s, seed ) );//texture2D(iChannel0, seed + seed*0.001).x;
+}
+
+float len(vec2 v)
+{
+    float w = 1.25/(.25+mirror(seed*.125));
+    return pow(dot(pow(v, vec2(w)), vec2(1)), 1./w);
+}
+
+float flip(vec2 v, float w)
+{
+    v = fract(v / 2.) - .5;
+    return mix(w, 1. - w, step(0., v.x * v.y));
+}
+
+float tile(vec2 v)
+{
+    v = fract(v);
+    return smoothstep(.0,.05, abs(len(v)-.5)) * smoothstep(.0,.05, abs(len(1.-v)-.5));
+}
+
+float tile_full(vec2 v)
+{
+    v = fract(v);
+    return smoothstep(.45,.55, len(v)) * smoothstep(.45,.55, len(1.-v));
+}
+
+float pattern(vec2 v)
+{
+    vec2 id = floor(v);
+    return mix(
+        flip(v, rnd(id / 128.) < .5 ? 1.-tile_full(v) : tile_full(vec2(1.-v.x,v.y))),
+        1.-(rnd(id / 128.) < .5 ? tile(v) : tile(vec2(1.-v.x,v.y))),
+        mirror(seed*.01));
+}
+
+void main()
+{
+	vec2 I = vUv;
+    float p = 1.-pattern(I*10.);
+    gl_FragColor = vec4(p);
+}
+
+</script>
+
 <script>
+
+// https://www.shadertoy.com/view/4st3R7
 
 'use strict';
 
@@ -241,9 +318,9 @@ function initScene() {
 	textures.roughnessTexture.wrapS = textures.roughnessTexture.wrapT = THREE.RepeatWrapping;
 	textures.normalTexture.wrapS = textures.normalTexture.wrapT = THREE.RepeatWrapping;
 
-	textures.texture.repeat.set( 4, 1 );
-	textures.roughnessTexture.repeat.set( 4, 1 );
-	textures.normalTexture.repeat.set( 4, 1 );
+	textures.texture.repeat.set( 10, 1 );
+	textures.roughnessTexture.repeat.set( 10, 1 );
+	textures.normalTexture.repeat.set( 10, 1 );
 
 	torus = new THREE.Mesh(
 		new THREE.TorusKnotBufferGeometry( 1, .3, 200, 32 ),
@@ -251,7 +328,7 @@ function initScene() {
 			map: textures.texture,
 			roughnessMap: textures.roughnessTexture,
 			metalnessMap: textures.roughnessTexture,
-			emissiveMap: textures.texture,
+			//emissiveMap: textures.texture,
 			bumpMap: textures.texture,
 			normalMap: textures.normalTexture,
 			emissive: 0x101010,
@@ -300,7 +377,7 @@ function generateTextures( width, height ) {
 			seed: { type: 'f', value: Math.random() * performance.now() }
 		},
 		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
-		fragmentShader: document.getElementById( 'diffuse-fs' ).textContent
+		fragmentShader: document.getElementById( 'tiles-fs' ).textContent
 	} );
 
 	var texture = new ShaderTexture( renderer, shader, width, height );
@@ -358,7 +435,7 @@ function init() {
 	camera.position.x = 2;
 	scene.add( camera );
 
-	renderer = new THREE.WebGLRenderer( { antialias: false, preserveDrawingBuffer: true } );
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setClearColor( 0, 1 );
 	container.appendChild( renderer.domElement );
@@ -372,6 +449,30 @@ function init() {
 	onWindowResized();
 
 	window.addEventListener( 'resize', onWindowResized );
+
+	window.addEventListener( 'keydown', function( e ) {
+
+		if( e.keyCode === 32 ) {
+
+			var textures = generateTextures( 1024, 1024 );
+
+			textures.texture.wrapS = textures.texture.wrapT = THREE.RepeatWrapping;
+			textures.roughnessTexture.wrapS = textures.roughnessTexture.wrapT = THREE.RepeatWrapping;
+			textures.normalTexture.wrapS = textures.normalTexture.wrapT = THREE.RepeatWrapping;
+
+			textures.texture.repeat.set( 10, 1 );
+			textures.roughnessTexture.repeat.set( 10, 1 );
+			textures.normalTexture.repeat.set( 10, 1 );
+
+			torus.material.map = textures.texture;
+			torus.material.roughnessMap= textures.roughnessTexture;
+			torus.material.metalnessMap= textures.roughnessTexture;
+			//torus.material.emissiveMap= textures.texture;
+			torus.material.bumpMap= textures.texture;
+			torus.material.normalMap= textures.normalTexture;
+
+		}
+	});
 
 	animate();
 
@@ -393,8 +494,8 @@ function animate() {
 	requestAnimationFrame( animate );
 
 	controls.update();
-	torus.rotation.x += .01;
-	torus.rotation.y += .001;
+	//torus.rotation.x += .01;
+	//torus.rotation.y += .001;
 
 	renderer.render( scene, camera );
 
