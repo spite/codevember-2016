@@ -51,3 +51,7 @@ body {
 #info a:hover, .action:hover{
 	opacity: 1
 }
+b{
+	font-weight: bold;
+	color: #b70000;
+}
