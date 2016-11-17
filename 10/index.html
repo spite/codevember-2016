@@ -15,6 +15,7 @@
 		<div id="info" >
 			<p><a href="../9" >Previous</a> | <a href="../11" >Next</a></p>
 			<h1>10. Odeo</h1>
+			<p><a href="#" id="playBtn">Play</a></p>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -93,7 +94,11 @@ var container = document.getElementById( 'container' );
 var odeo = new Odeo( {
 	soundCloudId: 'b1275b704badf79d972d51aa4b92ea15'
 } );
-odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
+document.getElementById( 'playBtn' ).addEventListener( 'click', function( e ) {
+	odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
+	//odeo.useMicrophone();
+	e.preventDefault();
+})
 //odeo.useMicrophone();
 //odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
 //odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
