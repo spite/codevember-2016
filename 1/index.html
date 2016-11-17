@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="en">
 	<head>
-		<title>Segmented Torus</title>
+		<title>Procedurally Textured Torus</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Roboto+Slab|Roboto:300,400,700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -14,9 +14,9 @@
 		<div id="container"></div>
 		<div id="info" >
 			<p><a href="../2" >Next</a></p>
-			<h1>1. Segmented Torus</h1>
+			<h1>1. Procedurally Textured Torus</h1>
 			<p>The original idea was to procedurally create a wood texture, it ended up being the base for building ShaderTexture, a THREE.Texture that helps creating procedural textures using fragment shaders.</p>
-			<p>This example uses <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy to generate textures.</p>
+			<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</p>
 			<p>Press <b>space</b> to generate a new texture.</p>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -224,7 +224,7 @@ float noise( in vec3 x )
 #define mirror(v) abs(2. * fract(v / 2.) - 1.)
 
 float rnd(vec2 co){
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+    return fract(sin(dot(co.xy + seed,vec2(12.9898,78.233))) * 43758.5453);
     //return noise( vec3( s, seed ) );//texture2D(iChannel0, seed + seed*0.001).x;
 }
 
@@ -342,11 +342,11 @@ function initScene() {
 	scene.add( torus );
 
 	var floor = new THREE.Mesh(
-		new THREE.PlaneBufferGeometry( 100, 100 ),
+		new THREE.PlaneBufferGeometry( 1000, 1000 ),
 		new THREE.MeshStandardMaterial({
 			roughness: .9,
 			metalness: 0,
-			color: 0x808080
+			color: 0xbfbfbf
 		})
 	);
 	floor.rotation.x = -Math.PI / 2;
@@ -427,7 +427,7 @@ function init() {
 
 	scene = new THREE.Scene();
 
-	scene.fog = new THREE.FogExp2( 0, 0.025 );
+	scene.fog = new THREE.FogExp2( 0xbfbfbf, .025 );
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 100 );
 	camera.target = new THREE.Vector3( 0, .7, 0 );
@@ -437,7 +437,7 @@ function init() {
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0, 1 );
+	renderer.setClearColor( 0xbfbfbf, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
@@ -494,8 +494,8 @@ function animate() {
 	requestAnimationFrame( animate );
 
 	controls.update();
-	//torus.rotation.x += .01;
-	//torus.rotation.y += .001;
+	torus.rotation.x += .01;
+	torus.rotation.y += .001;
 
 	renderer.render( scene, camera );
 
