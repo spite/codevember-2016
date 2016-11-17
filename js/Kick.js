@@ -1,4 +1,4 @@
-var Kick = function ( o ) {
+var Kick = function ( o, data ) {
 	o = o || {};
 	this.frequency = o.frequency !== undefined ? o.frequency : [ 0, 10 ];
 	this.threshold = o.threshold !== undefined ? o.threshold :  0.3;
@@ -7,6 +7,7 @@ var Kick = function ( o ) {
 	this.offKick   = o.offKick;
 	this.isOn      = false;
 	this.currentThreshold = this.threshold;
+	this.fftData   = data;
 };
 
 Kick.prototype = {
@@ -30,7 +31,7 @@ Kick.prototype = {
 
 	onUpdate : function () {
 		if ( !this.isOn ) { return; }
-		var magnitude = this.maxAmplitude( this.frequency );
+		var magnitude = this.maxAmplitude( this.frequency, this.fftData );
 		if ( magnitude >= this.currentThreshold &&
 		    magnitude >= this.threshold ) {
 			this.currentThreshold = magnitude;
@@ -40,10 +41,8 @@ Kick.prototype = {
 		this.currentThreshold -= this.decay;
 	}
 },
-maxAmplitude : function ( frequency ) {
-	var
-	max = 0,
-	fft = frequencyData;
+maxAmplitude : function ( frequency, fft ) {
+	var max = 0;
 
       // Sloppy array check
 	if ( !frequency.length ) {
