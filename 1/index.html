@@ -31,6 +31,7 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.ShaderTexture.js"></script>
 		<script src="../js/isMobile.min.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script type="x-shader/x-vertex" id="ortho-vs" >
 precision highp float;
@@ -343,10 +344,6 @@ var mobile = isMobile.any;
 var container = document.getElementById( 'container' );
 
 var SHADOW_MAP_WIDTH = 512, SHADOW_MAP_HEIGHT = 512;
-
-document.getElementById( 'moreDetails' ).addEventListener( 'click', function( e ) {
-	document.getElementById( 'details' ).classList.toggle( 'hidden' );
-});
 
 document.getElementById( 'refreshBtn' ).addEventListener( 'click', function( e ) {
 	refreshTextures();
