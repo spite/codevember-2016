@@ -5,6 +5,11 @@
 }
 html {
 	height: 100%;
+	-moz-user-select: none;
+	-khtml-user-select: none;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
 }
 body {
 	margin: 0;
@@ -16,8 +21,8 @@ body {
 	overflow: hidden;
 	font-family: 'Roboto', sans-serif;
 	font-size: 13px;
-	font-weight: 100;
-	text-shadow: 0 1px 0 rgba(0,0,0,.6);
+	font-weight: normal;
+	text-shadow: 0 1px 0 rgba(0,0,0,1);
 }
 #container {
 	position: absolute;
@@ -31,6 +36,9 @@ body {
 	left: 20px;
 	top: 20px;
 	max-width: 600px;
+	height: 100%;
+	overflow: auto;
+	pointer-events: none;
 }
 #info h1{
 	font-family: 'Roboto Slab', sans-serif;
@@ -45,12 +53,27 @@ body {
 	color: inherit;
 	cursor: pointer;
 	text-decoration: none;
-	opacity: .5;
+	opacity: .7;
 	transition: opacity 100ms ease-out;
+	pointer-events: auto;
 }
 #info a:hover, .action:hover{
 	opacity: 1
 }
 b{
 	font-weight: bold;
+}
+#details{
+	height: auto;
+	opacity: 1;
+	transition: all 250ms ease-out;
+	overflow: hidden;
+}
+#details.hidden{
+	opacity: 0;
+	height: 0;
+}
+#moreDetails{
+	cursor:pointer;
+	pointer-events: auto;
 }
