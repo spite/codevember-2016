@@ -25,12 +25,19 @@
 			<p>Rendering <a href="https://en.wikipedia.org/wiki/Attractor#Strange_attractor" >strange attractors</a>.</p>
 			<p>Pick one type of attractor, or <span id="randomize" class="action">randomize the selected one</span><br/>If you find a nice one, the console is outputting the values<br/>Some solutions might not be very interesting</p>
 			<p><ul id="attractors">
-				<li data-attractor="lorenz" class="active">Lorenz</li>
-				<li data-attractor="rössler">Rössler</li>
-				<li data-attractor="rabinovich-fabrikant">Rabinovich-Fabrikant</li>
-				<li data-attractor="thomas">Thomas</li>
+				<li class="action action" data-attractor="lorenz">Lorenz</li>
+				<li class="action" data-attractor="rössler">Rössler</li>
+				<li class="action" data-attractor="rabinovich-fabrikant">Rabinovich-Fabrikant</li>
+				<li class="action" data-attractor="thomas">Thomas</li>
 				<!--<li data-attractor="lorenz-84">Lorenz-84</li>-->
 			</ul>
+			</p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>Several points are created evaluating a strange attractor equation. From those points, a line geometry is created, a MeshLine geometry is created, and particles (billboarded triangles) are spawned along the path. MeshLine width and particles sizes and spread is based on distance along the path.</p>
+				<p>Finally everything is rendered to a framebuffer (3 draw calls, one for each geometry), then some post-processing is applied. First, a slight RGB shift. Then, a tilt shift shader performing a directional blur pass on the vertical axis, based on vertical distance to the center. Finally, a final pass performs FXAA, add vignette, noise and performs gamma correction.</p>
+				<p>
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -38,6 +45,7 @@
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.MeshLine.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script id="particle-vs" type="x-shader/x-vertex">
 precision highp float;
@@ -138,7 +146,8 @@ float smootherstep(float edge0, float edge1, float x) {
 void main(){
 
 	vec4 sum = vec4( 0. );
-	vec2 inc = vec2( 0., .005 * smootherstep( 0., .75, abs( .5 - vUv.y ) ) );
+	float d = abs( .5 - vUv.y );
+	vec2 inc = vec2( 0., .005 * smootherstep( 0., .75, d ) );
 
 	sum += texture2D( inputTexture, ( vUv - inc * 4. ) ) * 0.051;
 	sum += texture2D( inputTexture, ( vUv - inc * 3. ) ) * 0.0918;
@@ -370,6 +379,8 @@ function generatePointLorenz( x, y, z, ic ) {
 	return { x: x, y: y, z: z }
 
 }
+
+// a: 6.970773956984983, b: 45.21069279106107. c: 0.40074195636847343
 
 function randomizeLorenz() {
 
@@ -711,6 +722,9 @@ function init() {
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	controls.enableDamping = true;
+	controls.dampingFactor = 0.1;
+	controls.rotateSpeed = .1;
 
 	baseFBO = createRenderTarget();
 	shiftFBO = createRenderTarget();
