@@ -22,7 +22,7 @@
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.ShaderTexture.js"></script>
-		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/EquirectangularToCubemap.js"></script>
 
 <script type="x-shader/x-vertex" id="ortho-vs" >
 precision highp float;
@@ -53,76 +53,130 @@ uniform float time;
 
 varying vec2 vUv;
 
-vec2 hash2( vec2 p )
+vec2 hash( vec2 p ) { p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))); return fract(sin(p)*18.5453); }
+
+vec3 hash3( vec2 p )
 {
-	return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);
+    vec3 q = vec3( dot(p,vec2(127.1,311.7)),
+				   dot(p,vec2(269.5,183.3)),
+				   dot(p,vec2(419.2,371.9)) );
+	return fract(sin(q)*43758.5453);
 }
 
-vec3 voronoi( in vec2 x )
+float iqnoise( in vec2 x, float u, float v )
 {
-    vec2 n = floor(x);
+    vec2 p = floor(x);
     vec2 f = fract(x);
 
-    //----------------------------------
-    // first pass: regular voronoi
-    //----------------------------------
-	vec2 mg, mr;
+	float k = 1.0+63.0*pow(1.0-v,4.0);
 
-    float md = 8.0;
-    for( int j=-1; j<=1; j++ )
-    for( int i=-1; i<=1; i++ )
-    {
-        vec2 g = vec2(float(i),float(j));
-		vec2 o = hash2( n + g );
-		#ifdef ANIMATE
-        o = 0.5 + 0.5*sin( time + 6.2831*o );
-        #endif
-        vec2 r = g + o - f;
-        float d = dot(r,r);
-
-        if( d<md )
-        {
-            md = d;
-            mr = r;
-            mg = g;
-        }
-    }
-
-    //----------------------------------
-    // second pass: distance to borders
-    //----------------------------------
-    md = 8.0;
+	float va = 0.0;
+	float wt = 0.0;
     for( int j=-2; j<=2; j++ )
     for( int i=-2; i<=2; i++ )
     {
-        vec2 g = mg + vec2(float(i),float(j));
-		vec2 o = hash2( n + g );
-		#ifdef ANIMATE
-        o = 0.5 + 0.5*sin( time + 6.2831*o );
-        #endif
-        vec2 r = g + o - f;
-
-        if( dot(mr-r,mr-r)>0.00001 )
-        md = min( md, dot( 0.5*(mr+r), normalize(r-mr) ) );
+        vec2 g = vec2( float(i),float(j) );
+		vec3 o = hash3( p + g )*vec3(u,u,1.0);
+		vec2 r = g - f + o.xy;
+		float d = dot(r,r);
+		float ww = pow( 1.0-smoothstep(0.0,1.414,sqrt(d)), k );
+		va += o.z*ww;
+		wt += ww;
     }
 
-    return vec3( md, mr );
+    return va/wt;
+}
+
+// return distance, and cell id
+vec2 voronoi( in vec2 x )
+{
+    vec2 n = floor( x );
+    vec2 f = fract( x );
+
+	vec3 m = vec3( 8.0 );
+    for( int j=-1; j<=1; j++ )
+    for( int i=-1; i<=1; i++ )
+    {
+        vec2  g = vec2( float(i), float(j) );
+        vec2  o = hash( n + g );
+      //vec2  r = g - f + o;
+	    vec2  r = g - f + (0.5+0.5*sin(0.+6.2831*o));
+		float d = dot( r, r );
+        if( d<m.x )
+            m = vec3( d, o );
+    }
+
+    return vec2( sqrt(m.x), m.y+m.z );
 }
 
 #define M_PI 3.1415926535897932384626433832795
 
 void main() {
 
-	vec2 p = ( vUv - .5 );
-	//p.x *= cos( p.y * M_PI );
-	p *= vec2( 100., 50. );
+	vec2 uv = ( vUv );
+	uv *= vec2( 10., 10. );
+	vec2 p = 0.5 - 0.5*sin( 0.*vec2(1.01,1.71) );
 
-	vec3 c = voronoi( p);
-    vec3 col = vec3( smoothstep( 0., .1, c.x ) );
+	vec2 c = voronoi( uv );
+    vec3 col = .1 + vec3( c.y / 3. );
+
+	float f = iqnoise( 1. * uv + c.y, p.x, p.y );
+	col *= .5 + .5 * vec3( f );
 
 	gl_FragColor = vec4( col, 1. );
 
 }
+</script>
+
+<script id="blur-fs" type="x-shader/x-fragment">
+precision highp float;
+
+uniform sampler2D tInputMap;
+uniform vec2 dimensions;
+uniform float sigma;
+
+varying vec2 vUv;
+
+float normpdf(in float x, in float sigma)
+{
+	return 0.39894*exp(-0.5*x*x/(sigma*sigma))/sigma;
+}
+
+void main() {
+
+	//declare stuff
+	const int mSize = 11;
+	const int kSize = (mSize-1)/2;
+	float kernel[mSize];
+	vec3 final_colour = vec3(0.0);
+
+	//create the 1-D kernel
+	float Z = 0.0;
+	for (int j = 0; j <= kSize; ++j)
+	{
+		kernel[kSize+j] = kernel[kSize-j] = normpdf(float(j), sigma);
+	}
+
+	//get the normalization factor (as the gaussian has been clamped)
+	for (int j = 0; j < mSize; ++j)
+	{
+		Z += kernel[j];
+	}
+
+	//read out the texels
+	for (int i=-kSize; i <= kSize; ++i)
+	{
+		for (int j=-kSize; j <= kSize; ++j)
+		{
+			final_colour += kernel[kSize+j]*kernel[kSize+i]*texture2D(tInputMap, (gl_FragCoord.xy+vec2(float(i),float(j))) / dimensions.xy).rgb;
+
+		}
+	}
+
+	gl_FragColor = vec4(final_colour/(Z*Z), 1.0);
+
+}
+
 </script>
 
 <script id="heightmap-to-normalmap-fs" type="x-shader/x-fragment">
@@ -203,8 +257,6 @@ void main(void) {
 var container, renderer, camera, controls, scene;
 var mesh;
 
-var helper;
-
 var container = document.getElementById( 'container' );
 
 function generateTextures( width, height ) {
@@ -221,14 +273,27 @@ function generateTextures( width, height ) {
 	var diffuse = new ShaderTexture( renderer, shader, width, height );
 	diffuse.render();
 
+	var blurShader = new THREE.RawShaderMaterial( {
+		uniforms:{
+			tInputMap: { type: 't', value: diffuse.texture },
+			dimensions: { type: 'v2', value: new THREE.Vector2( width, height ) },
+			sigma: { type: 'f', value: 2 }
+		},
+		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
+		fragmentShader: document.getElementById( 'blur-fs' ).textContent
+	} );
+
+	var blurTexture = new ShaderTexture( renderer, blurShader, width, height );
+	blurTexture.render();
+
 	var normalShader = new THREE.RawShaderMaterial( {
 		uniforms:{
-			dz: { type: 'f', value: 1. },
+			dz: { type: 'f', value: 40 },
 			invertR: { type: 'f', value: 1 },
 			invertG: { type: 'f', value: 1 },
 			invertH: { type: 'f', value: 1 },
 			type: { type: 'f', value: 0 },
-			tHeightMap: { type: 't', value: diffuse.texture },
+			tHeightMap: { type: 't', value: blurTexture.texture },
 			dimensions: { type: 'v2', value: new THREE.Vector2( width, height ) }
 		},
 		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
@@ -238,41 +303,78 @@ function generateTextures( width, height ) {
 	var normal = new ShaderTexture( renderer, normalShader, width, height );
 	normal.render();
 
-	helper.attach( diffuse.fbo, 'diffuse' );
-	helper.attach( normal.fbo, 'normal' );
+	var blurShader2 = new THREE.RawShaderMaterial( {
+		uniforms:{
+			tInputMap: { type: 't', value: normal.texture },
+			dimensions: { type: 'v2', value: new THREE.Vector2( width, height ) },
+			sigma: { type: 'f', value: 10 }
+		},
+		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
+		fragmentShader: document.getElementById( 'blur-fs' ).textContent
+	} );
+
+	var blurredNormalTexture = new ShaderTexture( renderer, blurShader2, width, height );
+	blurredNormalTexture.render();
 
 	return {
 		diffuse: diffuse.texture,
-		normal: normal.texture
+		height: blurTexture.texture,
+		normal: blurredNormalTexture.texture,
 	}
 
 }
 
 function initScene( id, randomize ) {
 
-	var textures = generateTextures( 2048, 2048 );
+	var textures = generateTextures( 1024, 1024 );
 
 	var light = new THREE.HemisphereLight( 0xffffff, 0x000000, 1 );
 	scene.add( light );
 
-	var light = new THREE.SpotLight( 0xffffff, 1, 0, 1, .5, .5 );
-	light.position.set( 0, 15, 0 );
+	var light = new THREE.SpotLight( 0x87cffd, .5, 0, 1, .5, .5 );
+	light.position.set( 0, 0, 15 );
 	light.target.position.set( 0, 0, 0 );
 	scene.add( light );
 
-	var mesh = new THREE.Mesh(
-		new THREE.IcosahedronGeometry( 10, 3 ),
+	var light = new THREE.SpotLight( 0xfded87, .5, 0, 1, .5, .5 );
+	light.position.set( 10, 0, 15 );
+	light.target.position.set( 0, 0, 0 );
+	scene.add( light );
+
+	textures.diffuse.wrapS = textures.diffuse.wrapT = THREE.RepeatWrapping;
+	textures.normal.wrapS = textures.normal.wrapT = THREE.RepeatWrapping;
+	textures.height.wrapS = textures.height.wrapT = THREE.RepeatWrapping;
+
+	textures.diffuse.repeat.set( 1, 1 );
+	textures.normal.repeat.set( 1, 1 );
+	textures.height.repeat.set( 1, 1 );
+
+	mesh = new THREE.Mesh(
+		//new THREE.TorusKnotBufferGeometry( 10, 3, 200, 36 ),
+		new THREE.PlaneBufferGeometry( 10, 10 ),
 		new THREE.MeshStandardMaterial( {
-			color: 0xdedede,
-			//roughnessMap: textures.diffuse,
-			metalness: 0,
-			map: textures.diffuse,
-			//bumpMap: textures.diffuse,
-			//normalMap: textures.normal,
-			normalScale: new THREE.Vector2( 0, 0 )
+			color: 0xffffff,
+			roughness: .1,
+			metalness: 1,
+			roughnessMap: textures.diffuse,
+			metalnessMap: textures.diffuse,
+			aoMap: textures.height,
+			bumpMap: textures.height,
+			normalMap: textures.normal,
+			//normalScale: new THREE.Vector2( 0, 0 )
 		} )
 	);
 	scene.add( mesh );
+
+	var loader = new THREE.TextureLoader();
+	loader.load( '../assets/pano-pedrera.jpg', function( res ) {
+
+		var equiToCube = new EquirectangularToCubemap( renderer );
+		mesh.material.envMap = equiToCube.convert( res, 1024 );
+		mesh.material.envMapIntensity = 1;
+		mesh.material.needsUpdate = true;
+
+	});
 
 }
 
@@ -284,19 +386,17 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 200 );
+	camera.position.set( 10, 10, 10 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
-	renderer = new THREE.WebGLRenderer( { antialias: !true, preserveDrawingBuffer: true } );
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setClearColor( 0x261b1f, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
-
-	helper = new FBOHelper( renderer );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
@@ -318,8 +418,6 @@ function onWindowResized( event ) {
 	camera.aspect = w / h;
 	camera.updateProjectionMatrix();
 
-	helper.setSize( w, h );
-
 }
 
 function animate() {
@@ -329,7 +427,6 @@ function animate() {
 	controls.update();
 
 	renderer.render( scene, camera );
-	helper.update();
 
 }
 
