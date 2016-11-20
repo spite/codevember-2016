@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 		<style>
 		#attractors{ list-style-type: none; margin-bottom: 1em; }
@@ -20,25 +20,32 @@
 
 		<div id="container"></div>
 		<div id="info" >
-			<p><a href="../2" >Previous</a> | <a href="../4" >Next</a></p>
+			<!--<p><a href="../2" >Previous</a> | <a href="../4" >Next</a></p>-->
 			<h1>3. Strange attractors</h1>
 			<p>Rendering <a href="https://en.wikipedia.org/wiki/Attractor#Strange_attractor" >strange attractors</a>.</p>
-			<p>Pick one type of attractor, or <span id="randomize" class="action">randomize the selected one</span><br/>If you find a nice one, the console is outputting the values<br/>Some solutions might not be very interesting</p>
+			<p>Pick one type of attractor, or <span id="randomize" class="action">randomize the selected one</span></p>
 			<p><ul id="attractors">
 				<li class="action action" data-attractor="lorenz">Lorenz</li>
 				<li class="action" data-attractor="rössler">Rössler</li>
 				<li class="action" data-attractor="rabinovich-fabrikant">Rabinovich-Fabrikant</li>
 				<li class="action" data-attractor="thomas">Thomas</li>
-				<!--<li data-attractor="lorenz-84">Lorenz-84</li>-->
-			</ul>
-			</p>
+				<!--<li class="action" data-attractor="lorenz-84">Lorenz-84</li>-->
+			</ul></p>
+			<p>If you find a nice one, you can share the URL<br/>Some solutions might not be very interesting</p>
+
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Several points are created evaluating a strange attractor equation. From those points, a line geometry is created, a MeshLine geometry is created, and particles (billboarded triangles) are spawned along the path. MeshLine width and particles sizes and spread is based on distance along the path.</p>
+				<p>Several points are created evaluating a strange attractor equation.</p>
+				<p>From those points, a line geometry is created, a MeshLine geometry is created, and particles (billboarded triangles) are spawned along the path. MeshLine width and particles sizes and spread is based on distance along the path.</p>
 				<p>Finally everything is rendered to a framebuffer (3 draw calls, one for each geometry), then some post-processing is applied. First, a slight RGB shift. Then, a tilt shift shader performing a directional blur pass on the vertical axis, based on vertical distance to the center. Finally, a final pass performs FXAA, add vignette, noise and performs gamma correction.</p>
-				<p>
+				<p>The fade in and fade out animation is done with a framerate-independent easing function that modified the draw ranges of each mesh.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by <a href="https://twitter.com/archillect/status/794001158440357890" >this image</a>, <a href="https://twitter.com/archillect/status/795463296799428609" >this image</a> and <a href="https://twitter.com/grgrdvrt/status/794063490889744384">all this thread</a><br/>
+				Attractor equations and initial conditions values from <a href="http://www.chaoscope.org/doc/attractors.htm">chaoscope</a>, <a href="http://softology.com.au/tutorials/attractors2d/tutorial.htm">softology</a> and Wikipedia's <a href="https://en.wikipedia.org/wiki/List_of_chaotic_maps" >list of chaotic maps</a>.<br/>
+				I can't remember where I got the separable blur and FXAA shader code from 😕<p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a> and <a href="https://github.com/spite/THREE.MeshLine" >THREE.MeshLine</a></p>
 			</div>
-			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+			<!--<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>-->
 		</div>
 
 		<script src="../js/three.js"></script>
@@ -287,102 +294,39 @@ var mesh;
 
 var container = document.getElementById( 'container' );
 
-var initialConditions = {
-	'lorenz': {
-		a: 10,
-		b: 28,
-		c: 8 / 3,
-		x: 0,
-		y: 10,
-		z: 10,
-		h: 0.004,
-		scale: 10,
-		spread: .5,
-		particleSize: .1,
-		generator: generatePointLorenz,
-		autoCenter: true,
-		randomize: randomizeLorenz
-	},
-	'lorenz-84': {
-		a: 2,
-		b: 28,
-		f: 10,
-		g: 1,
-		x: 0,
-		y: 0,
-		z: 0,
-		h: 0.00004,
-		scale: 20,
-		spread: .5,
-		particleSize: .025,
-		generator: generatePointLorenz84,
-		autoCenter: true,
-		randomize: randomizeLorenz84
-	},
-	'rössler': {
-		a: .2,
-		b: .2,
-		c: 5.7,
-		x: 0,
-		y: 10,
-		z: 10,
-		h: 0.008,
-		scale: 20,
-		spread: 1,
-		particleSize: .1,
-		generator: generatePointRössler,
-		randomize: randomizeRossler,
-		autoCenter: false
-	},
-	'rabinovich-fabrikant': {
-		alpha: 1.1,
-		gamma: 0.87,
-		x: -1,
-		y: 0,
-		z: .5,
-		h: .002,
-		scale: 300,
-		spread: .2,
-		particleSize: .005,
-		generator: generateRabinovichFabrikantPoint,
-		randomize: randomizeRabinovichFabrikant,
-		autoCenter: true
-	},
-	'thomas': {
-		b: 0.208186,//0.1998,
-		x: 1,
-		y: 0,
-		z: 1,
-		h: .08,
-		scale: 200,
-		spread: .1,
-		particleSize: .025,
-		generator: generateThomasPoint,
-		randomize: randomizeThomas,
-		autoCenter: true
-	}
+function LorenzAttractor() {
+
+	this.id = 'lorenz';
+
+	this.a = 10;
+	this.b = 28;
+	this.c = 8 / 3;
+
+	this.x = 0;
+	this.y = 10;
+	this.z = 10;
+
+	this.h = .004;
+	this.scale = 10;
+	this.spread = .5;
+	this.particleSize = .1;
+	this.autoCenter = true;
+
 }
 
-function generatePointLorenz( x, y, z, ic ) {
+LorenzAttractor.prototype.generatePoint = function( x, y, z ) {
 
-	var a = ic.a;
-	var b = ic.b;
-	var c = ic.c;
-	var h = ic.h;
+	var nx = this.a * ( y - x );
+	var ny = ( x * ( this.b - z ) - y );
+	var nz = ( x * y - this.c * z );
 
-	var nx = a * ( y - x );
-	var ny = ( x * ( b - z ) - y );
-	var nz = ( x * y - c * z );
-
-	x += h * nx; y += h * ny; z += h * nz;
+	x += this.h * nx; y += this.h * ny; z += this.h * nz;
 
 	return { x: x, y: y, z: z }
 
 }
 
-// a: 6.970773956984983, b: 45.21069279106107. c: 0.40074195636847343
-
-function randomizeLorenz() {
+LorenzAttractor.prototype.randomize = function() {
 
 	this.a = Maf.randomInRange( 5, 20 );
 	this.b = Maf.randomInRange( 5, 50 );
@@ -394,56 +338,59 @@ function randomizeLorenz() {
 
 }
 
-function generatePointLorenz84( x, y, z, ic ) {
+LorenzAttractor.prototype.serialize = function() {
 
-	var a = ic.a;
-	var b = ic.b;
-	var f = ic.f;
-	var g = ic.g;
-	var h = ic.h;
-
-	var nx = - a * x - y * y - z * z + a * f;
-	var ny = -y + x * y - b * x * z + g;
-	var nz = -z + b * x * y + x * z;
-
-	x += h * nx; y += h * ny; z += h * nz;
-
-	return { x: x, y: y, z: z }
+	return this.id + ',' + this.a + ',' + this.b + ',' + this.c + ',' + this.x + ',' + this.y + ',' + this.z;
 
 }
 
-function randomizeLorenz84() {
+LorenzAttractor.prototype.deserialize = function( hash ) {
 
-	this.a = Maf.randomInRange( 5, 20 );
-	this.b = Maf.randomInRange( 5, 50 );
-	this.f = Maf.randomInRange( .1, .5 );
-	this.g = Maf.randomInRange( .1, .5 );
+	var fields = hash.split( ',' );
 
-	this.x = Maf.randomInRange( -10, 10 );
-	this.y = Maf.randomInRange( -10, 10 );
-	this.z = Maf.randomInRange( -10, 10 );
+	this.a = parseFloat( fields[ 1 ] );
+	this.b = parseFloat( fields[ 2 ] );
+	this.c = parseFloat( fields[ 3 ] );
+
+	this.x = parseFloat( fields[ 4 ] );
+	this.y = parseFloat( fields[ 5 ] );
+	this.z = parseFloat( fields[ 6 ] );
 
 }
 
-function generatePointRössler( x, y, z ) {
+function RosslerAttractor() {
 
-	var ic = initialConditions[ 'rössler' ];
-	var a = ic.a;
-	var b = ic.b;
-	var c = ic.c;
-	var h = ic.h;
+	this.id = 'rössler';
+
+	this.a = .2;
+	this.b = .2;
+	this.c = 5.7;
+
+	this.x = 0;
+	this.y = 10;
+	this.z = 10;
+
+	this.h = .008;
+	this.scale = 20;
+	this.spread = 1;
+	this.particleSize = .1;
+	this.autoCenter = false;
+
+}
+
+RosslerAttractor.prototype.generatePoint = function( x, y, z ) {
 
 	var nx = - ( y + z );
-	var ny = ( x + a * y );
-	var nz = ( b + x * z - c * z );
+	var ny = ( x + this.a * y );
+	var nz = ( this.b + x * z - this.c * z );
 
-	x += h * nx; y += h * ny; z += h * nz;
+	x += this.h * nx; y += this.h * ny; z += this.h * nz;
 
 	return { x: x, y: y, z: z }
 
 }
 
-function randomizeRossler() {
+RosslerAttractor.prototype.randomize = function() {
 
 	this.a = Maf.randomInRange( .1, 1 );
 	this.b = Maf.randomInRange( .1, 1 );
@@ -455,55 +402,198 @@ function randomizeRossler() {
 
 }
 
-function generateRabinovichFabrikantPoint( x, y, z, ic ) {
+RosslerAttractor.prototype.serialize = function() {
 
-	var alpha = ic.alpha;
-	var gamma = ic.gamma;
-	var h = ic.h;
+	return this.id + ',' + this.a + ',' + this.b + ',' + this.c + ',' + this.x + ',' + this.y + ',' + this.z;
 
-	var nx = y * ( z - 1 + x * x ) + gamma * x;
-	var ny = x * ( 3 * z + 1 - x * x ) + gamma * y;
-	var nz = - 2 * z * ( alpha + x * y );
+}
 
-	x += h * nx; y += h * ny; z += h * nz;
+RosslerAttractor.prototype.deserialize = function( hash ) {
+
+	var fields = hash.split( ',' );
+
+	this.a = parseFloat( fields[ 1 ] );
+	this.b = parseFloat( fields[ 2 ] );
+	this.c = parseFloat( fields[ 3 ] );
+
+	this.x = parseFloat( fields[ 4 ] );
+	this.y = parseFloat( fields[ 5 ] );
+	this.z = parseFloat( fields[ 6 ] );
+
+}
+
+function RabinovichFabrikantAttractor() {
+
+	this.id = 'rabinovich-fabrikant';
+
+	this.alpha = 1.1;
+	this.gamma = .87;
+
+	this.x = -1;
+	this.y = 0;
+	this.z = .5;
+
+	this.h = .002;
+	this.scale = 300;
+	this.spread = .2;
+	this.particleSize = .005;
+	this.autoCenter = true;
+
+}
+
+RabinovichFabrikantAttractor.prototype.generatePoint = function( x, y, z ) {
+
+	var nx = y * ( z - 1 + x * x ) + this.gamma * x;
+	var ny = x * ( 3 * z + 1 - x * x ) + this.gamma * y;
+	var nz = - 2 * z * ( this.alpha + x * y );
+
+	x += this.h * nx; y += this.h * ny; z += this.h * nz;
 
 	return { x: x, y: y, z: z }
 
 }
 
-// alpha 0.8595911201698079, gamma 0.42645763526477243
-// alpha 0.1375424634770443, gamma 0.1394521700932234
-
-function randomizeRabinovichFabrikant() {
+RabinovichFabrikantAttractor.prototype.randomize = function() {
 
 	this.alpha = Maf.randomInRange( .1, 1 );
 	this.gamma = Maf.randomInRange( .1, 1 );
 
+	this.x = Maf.randomInRange( -1, 1 );
+	this.y = Maf.randomInRange( -1, 1 );
+	this.z = Maf.randomInRange( -1, 1 );
+
 }
 
-function generateThomasPoint( x, y, z, ic ) {
+RabinovichFabrikantAttractor.prototype.serialize = function() {
 
-	var b = ic.b;
-	var h = ic.h;
+	return this.id + ',' + this.alpha + ',' + this.gamma + ',' + this.x + ',' + this.y + ',' + this.z;
 
-	var nx = Math.sin( y ) - b * x;
-	var ny = Math.sin( z ) - b * y;
-	var nz = Math.sin( x ) - b * z;
+}
 
-	x += h * nx; y += h * ny; z += h * nz;
+RabinovichFabrikantAttractor.prototype.deserialize = function( hash ) {
+
+	var fields = hash.split( ',' );
+
+	this.alpha = parseFloat( fields[ 1 ] );
+	this.gamma = parseFloat( fields[ 2 ] );
+
+	this.x = parseFloat( fields[ 3 ] );
+	this.y = parseFloat( fields[ 4 ] );
+	this.z = parseFloat( fields[ 5 ] );
+
+}
+
+function ThomasAttractor() {
+
+	this.id = 'thomas';
+
+	this.b = 0.208186;
+
+	this.x = 1;
+	this.y = 0;
+	this.z = 1;
+
+	this.h = .08;
+	this.scale = 200;
+	this.spread = .1;
+	this.particleSize = .025;
+	this.autoCenter = true;
+
+}
+
+ThomasAttractor.prototype.generatePoint = function( x, y, z ) {
+
+	var nx = Math.sin( y ) - this.b * x;
+	var ny = Math.sin( z ) - this.b * y;
+	var nz = Math.sin( x ) - this.b * z;
+
+	x += this.h * nx; y += this.h * ny; z += this.h * nz;
 
 	return { x: x, y: y, z: z }
 
 }
 
-function randomizeThomas() {
+ThomasAttractor.prototype.randomize = function() {
 
-	this.b = Maf.randomInRange( .1, 1 );
+	this.b = Maf.randomInRange( .01, .4 );
+
+	this.x = Maf.randomInRange( -1, 1 );
+	this.y = Maf.randomInRange( -1, 1 );
+	this.z = Maf.randomInRange( -1, 1 );
+
+}
+
+ThomasAttractor.prototype.serialize = function() {
+
+	return this.id + ',' + this.b + ',' + this.x + ',' + this.y + ',' + this.z;
+
+}
+
+ThomasAttractor.prototype.deserialize = function( hash ) {
+
+	var fields = hash.split( ',' );
+
+	this.b = parseFloat( fields[ 1 ] );
+
+	this.x = parseFloat( fields[ 2 ] );
+	this.y = parseFloat( fields[ 3 ] );
+	this.z = parseFloat( fields[ 4 ] );
+
+}
+/*
+function Lorenz84Attractor() {
+
+	this.a = 1.111;
+	this.b = 1.479;
+	this.f = 4.494;
+	this.g = .44;
+
+	this.x = 1;
+	this.y = 1;
+	this.z = 1;
+
+	this.h = .136;
+	this.scale = 100;
+	this.spread = .01;
+	this.particleSize = .025;
+	this.autoCenter = true;
+
+}
+
+Lorenz84Attractor.prototype.generatePoint = function( x, y, z ) {
+
+	var nx = ( -this.a * x - y * y - z * z + this.a * this.f)
+	var ny = ( -y + x * y - this.b * x * z + this.g )
+	var nz = ( -z + this.b * x * y + x * z)
+
+	x += this.h * nx; y += this.h * ny; z += this.h * nz;
+
+	return { x: x, y: y, z: z }
+
+}
+
+Lorenz84Attractor.prototype.randomize = function() {
+
+	this.a = Maf.randomInRange( 5, 20 );
+	this.b = Maf.randomInRange( 5, 50 );
+	this.f = Maf.randomInRange( .1, .5 );
+	this.g = Maf.randomInRange( .1, .5 );
 
 	this.x = Maf.randomInRange( -10, 10 );
 	this.y = Maf.randomInRange( -10, 10 );
 	this.z = Maf.randomInRange( -10, 10 );
 
+}
+*/
+
+// Lorenz a: 6.970773956984983, b: 45.21069279106107. c: 0.40074195636847343
+
+var attractors = {
+	'lorenz': LorenzAttractor,
+	'rössler': RosslerAttractor,
+	'rabinovich-fabrikant': RabinovichFabrikantAttractor,
+	'thomas': ThomasAttractor,
+	//'lorenz-84': Lorenz84Attractor
 }
 
 // http://www.chaoscope.org/doc/attractors.htm
@@ -514,7 +604,7 @@ var resolution = new THREE.Vector2( window.innerWidth, window.innerHeight );
 var thinLines, thickLines, particleSystem;
 var attractorObject = new THREE.Object3D();
 
-function initScene( id, randomize ) {
+function initScene( id, randomize, hash ) {
 
 	currentAttractor = id;
 
@@ -529,12 +619,18 @@ function initScene( id, randomize ) {
 		return Maf.parabola( p, 1 )
 	}
 
-	var attractor = initialConditions[ id ];
+	var attractor = new attractors[ id ]();
+
+	if( hash ) {
+		attractor.deserialize( hash );
+	}
+
 	if( randomize ) {
-		attractor = Object.assign({}, attractor);
-		attractor.randomize.call( attractor );
+		attractor.randomize();
 		console.log( attractor );
 	}
+
+	window.location.hash = attractor.serialize();
 
 	var p = {
 		x: attractor.x,
@@ -544,7 +640,7 @@ function initScene( id, randomize ) {
 
 	for( var j = 0; j < NUM_POINTS; j++ ) {
 
-		p = attractor.generator( p.x, p.y, p.z, attractor );
+		p = attractor.generatePoint( p.x, p.y, p.z );
 
 		if( isNaN( p.x ) || isNaN( p.y ) || isNaN( p.z ) ) {
 			console.log( 'Failed, retry' );
@@ -721,6 +817,8 @@ function init() {
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
+
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 	controls.enableDamping = true;
 	controls.dampingFactor = 0.1;
@@ -766,7 +864,8 @@ function init() {
 	orthoQuad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1 ), finalShader );
 	orthoScene.add( orthoQuad );
 
-	initScene( 'lorenz' );
+	if( window.location.hash) processHash();
+	else initScene( 'lorenz' );
 	onWindowResized();
 	fader.show();
 
@@ -881,6 +980,15 @@ function animate() {
 }
 
 window.addEventListener( 'load', init );
+window.addEventListener( 'hashchange', processHash );
+
+function processHash() {
+
+	var hash = window.location.hash.substr( 1 );
+	var id = hash.substr( 0, hash.indexOf( ',' ) );
+	initScene( id, false, hash );
+
+}
 
 var currentAttractor = 'lorenz';
 [].forEach.call( document.querySelectorAll( '#attractors li' ), function( li ) {
