@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto+Slab|Roboto:300,400,700" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -15,13 +15,14 @@
 		<div id="info" >
 			<p>Previous | <a href="../2" >Next</a></p>
 			<h1>1. Procedurally Textured Torus</h1>
-			<p>The original idea was to procedurally create a wood texture, it ended up being the base for building ShaderTexture, a THREE.Texture that helps creating procedural textures using fragment shaders.</p>
-			<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+			<p>The original idea was to procedurally create a wood texture, it ended up being the base for building <b>ShaderTexture</b>, a THREE.Texture that helps creating procedural textures using fragment shaders.</p>
 			<p><span class="action" id="refreshBtn" >Click here</span> or press <b>space</b> to generate a new texture.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Using ShaderTexture to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
-				<p>Then the maps are used as diffuse map, roughness map, metalness map, bump map and normal map of a THREE.MeshStandardMaterial.</p>
+				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
+				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p><b>Credits</b></p>
+				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -370,6 +371,7 @@ function addRandomLight( intensity ) {
 	scene.add( light );
 
 }
+
 function initScene() {
 
 	var light = new THREE.AmbientLight( 0x101010 );
@@ -568,6 +570,8 @@ function init() {
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setClearColor( 0xbfae98, 1 );
 	container.appendChild( renderer.domElement );
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
