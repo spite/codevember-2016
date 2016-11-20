@@ -6,23 +6,38 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
 
 		<div id="container"></div>
 		<div id="info" >
-			<p><a href="../3" >Previous</a> | <a href="../5" >Next</a></p>
+			<!--<p><a href="../3" >Previous</a> | <a href="../5" >Next</a></p>-->
 			<h1>4. Trencadís texture</h1>
-			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+			<p>Procedurally generating a "<a href="https://en.wikipedia.org/wiki/Trencad%C3%ADs" >Trencadís</a>"-like texture.</p>
+			<p>Using the <b>ShaderTexture</b> from the <a href="../1">Procedurally Textured Torus</a> and some <b>voronoi</b> functions by <b>iq</b> from <b>Shadertoy,</b> several maps are generated: diffuse, roughness and metalness; height and ao; and normal.</p>
+			<p><span class="action" id="refreshBtn" >Click here</span> or press <b>space</b> to generate a new texture.</p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>The process is very similar to the Procedurally Textured Torus. The shader that creates the base for the texture combines basic voronoi to simulate the different shards, modulated with iq's voronoise to replicate some of the waviness of traditional tile. Everything is blurred a bit with a gaussian blur, and then a normal map is calculated from the height map. The normal map is then blurred a bit more.</p>
+				<p>The scene has two lights and a plane, using the procedural maps on a THREE.MeshStandardMaterial, plus a panorama converted to a cubemap to use as environment map.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by Gaudí's work and <a href="http://archillect.com/93970" >this picture</a><br/><a href="https://www.shadertoy.com/view/MslGD8">Voronoi - basic</a> and <a href="https://www.shadertoy.com/view/Xd23Dh" >Voronoise</a> by iq<br/>
+			<a href="https://www.shadertoy.com/view/XdfGDH">Gaussian Blur</a> by mrharicot<br/>
+			Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a><br/>
+	Casa Milà "La Pederera" panorama by <a href="https://plus.google.com/+ZeljkoSoletic360">Zeljko Soletic</a></p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/THREE.EquirectangularToCubemap" >EquirectangularToCubemap</a></p>
+			</div>
+			<!--<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>-->
 		</div>
 
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
-		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.ShaderTexture.js"></script>
 		<script src="../js/EquirectangularToCubemap.js"></script>
+		<script src="../js/isMobile.min.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script type="x-shader/x-vertex" id="ortho-vs" >
 precision highp float;
@@ -49,7 +64,7 @@ precision highp float;
 #define ANIMATE
 
 uniform vec2 dimensions;
-uniform float time;
+uniform float seed;
 
 varying vec2 vUv;
 
@@ -100,7 +115,7 @@ vec2 voronoi( in vec2 x )
         vec2  g = vec2( float(i), float(j) );
         vec2  o = hash( n + g );
       //vec2  r = g - f + o;
-	    vec2  r = g - f + (0.5+0.5*sin(0.+6.2831*o));
+	    vec2  r = g - f + (0.5+0.5*sin(seed+6.2831*o));
 		float d = dot( r, r );
         if( d<m.x )
             m = vec3( d, o );
@@ -115,10 +130,11 @@ void main() {
 
 	vec2 uv = ( vUv );
 	uv *= vec2( 10., 10. );
+	uv += seed;
 	vec2 p = 0.5 - 0.5*sin( 0.*vec2(1.01,1.71) );
 
 	vec2 c = voronoi( uv );
-    vec3 col = .1 + vec3( c.y / 3. );
+    vec3 col = vec3( c.y / 2. );
 
 	float f = iqnoise( 1. * uv + c.y, p.x, p.y );
 	col *= .5 + .5 * vec3( f );
@@ -249,22 +265,40 @@ void main(void) {
 
 <script>
 
-// http://archillect.com/93970
-// https://www.shadertoy.com/view/ldl3W8#
+// https://www.shadertoy.com/view/Xd23Dh
+// https://www.shadertoy.com/view/MslGD8
+// https://www.shadertoy.com/view/XdfGDH
 
 'use strict';
 
 var container, renderer, camera, controls, scene;
-var mesh;
+var mesh, textures;
+
+var mobile = isMobile.any;
 
 var container = document.getElementById( 'container' );
+
+document.getElementById( 'refreshBtn' ).addEventListener( 'click', function( e ) {
+	refreshTextures();
+	e.preventDefault();
+});
+
+function refreshTextures() {
+
+	textures.refresh();
+
+	textures.texture.repeat.needsUpdate = true;
+	textures.roughnessTexture.repeat.needsUpdate = true;
+	textures.normalTexture.repeat.needsUpdate = true;
+
+}
 
 function generateTextures( width, height ) {
 
 	var shader = new THREE.RawShaderMaterial( {
 		uniforms:{
 			dimensions: { type: 'v2', value: new THREE.Vector2( width, height ) },
-			time: { type: 'f', value: Math.random() * performance.now() }
+			seed: { type: 'f', value: Math.random() * performance.now() }
 		},
 		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
 		fragmentShader: document.getElementById( 'trencadis-fs' ).textContent
@@ -288,7 +322,7 @@ function generateTextures( width, height ) {
 
 	var normalShader = new THREE.RawShaderMaterial( {
 		uniforms:{
-			dz: { type: 'f', value: 40 },
+			dz: { type: 'f', value: 50 },
 			invertR: { type: 'f', value: 1 },
 			invertG: { type: 'f', value: 1 },
 			invertH: { type: 'f', value: 1 },
@@ -307,7 +341,7 @@ function generateTextures( width, height ) {
 		uniforms:{
 			tInputMap: { type: 't', value: normal.texture },
 			dimensions: { type: 'v2', value: new THREE.Vector2( width, height ) },
-			sigma: { type: 'f', value: 10 }
+			sigma: { type: 'f', value: mobile ? 10 : 10 }
 		},
 		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
 		fragmentShader: document.getElementById( 'blur-fs' ).textContent
@@ -316,17 +350,29 @@ function generateTextures( width, height ) {
 	var blurredNormalTexture = new ShaderTexture( renderer, blurShader2, width, height );
 	blurredNormalTexture.render();
 
+	function refresh() {
+
+		shader.uniforms.seed.value = Math.random() * performance.now();
+
+		diffuse.render();
+		blurTexture.render();
+		normal.render();
+		blurredNormalTexture.render();
+
+	}
+
 	return {
-		diffuse: diffuse.texture,
+		diffuse: blurTexture.texture,
 		height: blurTexture.texture,
 		normal: blurredNormalTexture.texture,
+		refresh: refresh
 	}
 
 }
 
 function initScene( id, randomize ) {
 
-	var textures = generateTextures( 1024, 1024 );
+	textures = generateTextures( 1024, 1024 );
 
 	var light = new THREE.HemisphereLight( 0xffffff, 0x000000, 1 );
 	scene.add( light );
@@ -351,6 +397,7 @@ function initScene( id, randomize ) {
 
 	mesh = new THREE.Mesh(
 		//new THREE.TorusKnotBufferGeometry( 10, 3, 200, 36 ),
+		//new THREE.CylinderBufferGeometry( 3, 3, 10, 36 ),
 		new THREE.PlaneBufferGeometry( 10, 10 ),
 		new THREE.MeshStandardMaterial( {
 			color: 0xffffff,
@@ -359,8 +406,10 @@ function initScene( id, randomize ) {
 			roughnessMap: textures.diffuse,
 			metalnessMap: textures.diffuse,
 			aoMap: textures.height,
+			aoMapIntensity: .75,
 			bumpMap: textures.height,
 			normalMap: textures.normal,
+			side: THREE.DoubleSide
 			//normalScale: new THREE.Vector2( 0, 0 )
 		} )
 	);
@@ -371,7 +420,7 @@ function initScene( id, randomize ) {
 
 		var equiToCube = new EquirectangularToCubemap( renderer );
 		mesh.material.envMap = equiToCube.convert( res, 1024 );
-		mesh.material.envMapIntensity = 1;
+		mesh.material.envMapIntensity = .5;
 		mesh.material.needsUpdate = true;
 
 	});
@@ -386,7 +435,7 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 10, 10, 10 );
+	camera.position.set( 0, 0, 8 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
@@ -395,8 +444,7 @@ function init() {
 	renderer.setClearColor( 0x261b1f, 1 );
 	container.appendChild( renderer.domElement );
 
-	renderer.shadowMap.enabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap;
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
@@ -404,6 +452,16 @@ function init() {
 	onWindowResized();
 
 	window.addEventListener( 'resize', onWindowResized );
+
+	window.addEventListener( 'keydown', function( e ) {
+
+		if( e.keyCode === 32 ) {
+
+			refreshTextures();
+
+		}
+
+	});
 
 	animate();
 
