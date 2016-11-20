@@ -982,19 +982,26 @@ function animate() {
 window.addEventListener( 'load', init );
 window.addEventListener( 'hashchange', processHash );
 
+var attractorButtons = document.querySelectorAll( '#attractors li' );
+
 function processHash() {
 
 	var hash = window.location.hash.substr( 1 );
 	var id = hash.substr( 0, hash.indexOf( ',' ) );
+	[].forEach.call( attractorButtons, function( li ) {
+		var itemId = li.getAttribute( 'data-attractor');
+		li.classList.remove( 'active' );
+		if( itemId === id ) li.classList.add( 'active' );
+	} );
 	initScene( id, false, hash );
 
 }
 
 var currentAttractor = 'lorenz';
-[].forEach.call( document.querySelectorAll( '#attractors li' ), function( li ) {
+[].forEach.call( attractorButtons, function( li ) {
 	var id = li.getAttribute( 'data-attractor');
 	li.addEventListener( 'click', function ( e ) {
-		[].forEach.call( document.querySelectorAll( '#attractors li' ), function( li ) { li.classList.remove( 'active' ); } );
+		[].forEach.call( attractorButtons, function( li ) { li.classList.remove( 'active' ); } );
 		fader.onFadedOut = function() {
 			initScene( id, false );
 			fader.show();
