@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Clock flag</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Droid+Sans+Mono" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<h1>5. Clock flag</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>The process is very similar to the Procedurally Textured Torus. The shader that creates the base for the texture combines basic voronoi to simulate the different shards, modulated with iq's voronoise to replicate some of the waviness of traditional tile. Everything is blurred a bit with a gaussian blur, and then a normal map is calculated from the height map. The normal map is then blurred a bit more.</p>
+				<p>The scene has two lights and a plane, using the procedural maps on a THREE.MeshStandardMaterial, plus a panorama converted to a cubemap to use as environment map.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by Gaudí's work and <a href="http://archillect.com/93970" >this picture</a><br/><a href="https://www.shadertoy.com/view/MslGD8">Voronoi - basic</a> and <a href="https://www.shadertoy.com/view/Xd23Dh" >Voronoise</a> by iq<br/>
+			<a href="https://www.shadertoy.com/view/XdfGDH">Gaussian Blur</a> by mrharicot<br/>
+			Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a><br/>
+	Casa Milà "La Pederera" panorama by <a href="https://plus.google.com/+ZeljkoSoletic360">Zeljko Soletic</a></p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/THREE.EquirectangularToCubemap" >EquirectangularToCubemap</a></p>
+			</div>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/ImprovedNoise.js"></script>
+		<script src="../js/Cloth.js"></script>
+		<script src="../js/Common.js"></script>
+
+<script>
+
+// http://archillect.com/93785
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+//Flag object position for DAT.GUI
+var flagPos = {x: -300, y: -1400 ,z: 0};
+
+//Wind parameters for DAT.GUI
+var wind = {'enabled':true,
+	'strength':190,
+	'strengthVariation':true,
+	'strengthVariationPeriod':1000,
+	'turbulenceX':true,
+	'turbulenceY':true,
+	'turbulenceZ':true,
+	'directionX':5,
+	'directionY':2.3,
+	'directionZ':3.5,
+	'directionXOriginal':5,
+	'directionYOriginal':2.3,
+	'directionZOriginal':2,
+	'turbulencePeriodX':4000,
+	'turbulencePeriodY':4000,
+	'turbulencePeriodZ':4000
+};
+
+//Pin constrains
+var poleConstrain = {'formation':[],'index':0};
+var pinsFormation = [];
+var pins = [];
+
+//pins = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ];
+//pins = [ 0, 11, 22 , 33 , 44 , 55 , 66 , 77 , 88 , 99 , 110 ];//, 1 , 12 , 23 , 34 , 45 , 56 , 67 , 78, 89 , 100 , 111 ];
+for(var i=0;i<(cloth.h+1);i++){
+	pins.push(i*(cloth.w+1));
+}
+
+poleConstrain.formation.push( pins );
+
+pins = [ 0, cloth.h*(cloth.w+1) ]; // classic 2 pins
+poleConstrain.formation.push( pins );
+
+pins = []; // cut the rope ;)
+poleConstrain.formation.push( pins );
+
+//var pinFormationIndex = 0;
+pins = poleConstrain.formation[0];
+
+var clothGeometry;
+var n = new ImprovedNoise();
+
+var canvas = document.createElement( 'canvas' );
+canvas.width = 2048;
+canvas.height = 1024;
+document.body.appendChild( canvas );
+var ctx = canvas.getContext( '2d' );
+var texture = new THREE.Texture( canvas );
+
+function initScene() {
+
+	var light = new THREE.DirectionalLight( 0xffffff, 1 );
+	light.position.set( 1, 2, 1 );
+	light.castShadow = true;
+	scene.add( light );
+
+	var light = new THREE.DirectionalLight( 0xffffff, 1 );
+	light.position.set( -1, 4, 4 );
+	light.castShadow = true;
+	scene.add( light );
+
+	clothGeometry = new THREE.ParametricGeometry( clothFunction, cloth.w, cloth.h );
+	clothGeometry.dynamic = true;
+	clothGeometry.computeFaceNormals();
+
+	var material = new THREE.MeshStandardMaterial( {
+		map: texture,
+		metalnessMap: texture,
+		roughness: .5,
+		metalness: 0,
+		color: 0xffffff,
+		side: THREE.DoubleSide
+	});
+
+	mesh = new THREE.Mesh( clothGeometry, material );
+	mesh.position.set( flagPos.x, flagPos.y, flagPos.z );
+	mesh.castShadow = true;
+	mesh.receiveShadow = true;
+	mesh.position.set( flagPos.x, flagPos.y, flagPos.z );
+
+	scene.add( mesh );
+
+}
+
+function turbulence( x,  y,  z) {
+	var t = -.5;
+	var W = 100;
+	for (var f = 1 ; f <= 40 ; f *= 2)
+		t += Math.abs( n.noise(f*x,f*y,f*z) / f);
+	return t;
+}
+
+function update() {
+
+	var time = performance.now();
+
+	var s = .001;
+	s = s * turbulence( s * wind.directionX, s * wind.directionY, s * wind.directionZ );
+	windStrength = .1 * wind.strength * ( .5 + .5 * Math.sin( time ) ) * turbulence( s * wind.directionX + time, s * wind.directionY, s * wind.directionZ );
+
+	windStrength += .1 * Math.sin( time/wind.strengthVariationPeriod )*(wind.strength/2)+wind.strength;
+
+	wind.directionX = ( 6 + 2 * turbulence( time, 1.1 * time, .9 * time ) ) * windStrength;;//1 * windStrength;
+	wind.directionY = bump * windStrength;
+	wind.directionZ = 0 * windStrength;
+
+	windForce.set( wind.directionX,Math.sin( time / 2000 )*0.5+wind.directionY,Math.sin( time / 2000 )-0.5+wind.directionZ).normalize().multiplyScalar( windStrength );
+
+	gravity = new THREE.Vector3( 0, - 981, 0 ).multiplyScalar(clothProperties.mass);
+	simulate(time);
+
+}
+
+var timeStr = '';
+var bump = 0;
+var minutes = null;
+
+function updateTexture() {
+
+	var d = new Date();
+	var str = d.toTimeString().substr( 0, 8 );
+	if( timeStr !== str ) {
+
+		var t =  d.getMinutes();
+		if( t !== minutes ) {
+			minutes = t;
+			bump += 100;
+		} else {
+			bump += 5;
+		}
+
+		timeStr = str;
+
+		ctx.fillStyle = '#000000'
+		ctx.fillRect( 0, 0, canvas.width, canvas.height );
+		ctx.font = "300px 'Droid Sans Mono'";
+		ctx.fillStyle = '#ffffff';
+		var m = ctx.measureText( timeStr );
+		ctx.fillText( timeStr, .5 * ( canvas.width - m.width ), .5 * ( canvas.height + 200 ) );
+		texture.needsUpdate = true;
+
+	}
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( -185, -615, 1305 );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+	update();
+	updateTexture();
+
+	mesh.position.set( flagPos.x, flagPos.y, flagPos.z );
+
+	var p = cloth.particles;
+	for ( var i = 0, il = p.length; i < il; i ++ ) {
+		clothGeometry.vertices[ i ].copy( p[ i ].position );
+	}
+
+	clothGeometry.computeFaceNormals();
+	clothGeometry.computeVertexNormals();
+
+	clothGeometry.normalsNeedUpdate = true;
+	clothGeometry.verticesNeedUpdate = true;
+
+	bump *= .9;
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
