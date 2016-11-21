@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Crystals</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<h1>15. Crystals</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/EquirectangularToCubemap.js"></script>
+		<script src="../js/ImprovedNoise.js"></script>
+
+<script>
+
+// http://archillect.com/93970
+// https://www.shadertoy.com/view/ldl3W8#
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+var m = new THREE.Matrix4();
+var mRot = new THREE.Matrix4();
+var mScale = new THREE.Matrix4();
+var mTrans = new THREE.Matrix4();
+var euler = new THREE.Euler;
+
+function initScene() {
+
+	var light = new THREE.SpotLight( 0x7cf0fa, 1, 100, .3 );
+	light.position.set( 10, 10, 10 );
+	scene.add( light );
+	light.castShadow = true;
+
+	var light = new THREE.SpotLight( 0x7bb7c4, 1, 100, .4 );
+	light.position.set( -10, 4, -1 );
+	scene.add( light );
+	light.castShadow = true;
+
+	var light = new THREE.SpotLight( 0x424cc7, 1, 100, .3 );
+	light.position.set( -10, -20, 10 );
+	scene.add( light );
+	light.castShadow = true;
+
+	var geometry = new THREE.IcosahedronBufferGeometry( 1, 1 );
+	var material = new THREE.MeshStandardMaterial( {
+		shading: THREE.FlatShading,
+		metalness: .2,
+		roughness: 0,
+		refractionRatio: .5
+	});
+
+	var c = geometry.attributes.position.count;
+	var finalGeometry = new THREE.BufferGeometry();
+	finalGeometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( c * 3 * 100 ), 3 ) );
+	finalGeometry.addAttribute( 'normal', new THREE.BufferAttribute( new Float32Array( c * 3 * 100 ), 3 ) );
+	finalGeometry.addAttribute( 'color', new THREE.BufferAttribute( new Float32Array( c * 3 * 100 ), 3 ) );
+
+	var up = new THREE.Vector3( 0, 1, 0 );
+
+	for( var j = 0; j < 100; j++ ) {
+
+		var g = geometry.clone();
+		var sx = Maf.randomInRange( .1, 1 );
+		var sy = Maf.randomInRange( .1, 1 );
+		var sz = Maf.randomInRange( 2, 4 )
+		mScale.makeScale( .5 * sx, .5 * sy, .5 * sz );
+		g.applyMatrix( mScale );
+
+		g.computeBoundingBox();
+		var z = g.boundingBox.max.z;
+
+		mTrans.identity();
+		mTrans.makeTranslation( 0, 0, z );
+		g.applyMatrix( mTrans );
+
+		mRot.identity();
+		mTrans.identity();
+		euler.set( Maf.randomInRange( 0, 2 * Math.PI ), Maf.randomInRange( 0, 2 * Math.PI ), Maf.randomInRange( 0, 2 * Math.PI ) );
+		mRot.makeRotationFromEuler( euler );
+		var d = Math.min( sx, sy );
+		var p = new THREE.Vector3( Maf.randomInRange( -d, d ),  Maf.randomInRange( -d, d ), Maf.randomInRange( -d, d ) );
+		m.lookAt( scene.position, p, up );
+		g.applyMatrix( m );
+
+		finalGeometry.merge( g, j * c );
+
+	}
+
+	var n = new ImprovedNoise();
+	var r = .25;
+	var s = 10;
+	var d = finalGeometry.attributes.position.array;
+	for( var j = 0; j < d.length; j += 3 ) {
+		var a = r * n.noise( s * d[ j ], s * d[ j + 1 ], s * d[ j + 2 ] );
+		var b = r * n.noise( 2 * s * d[ j ], 2 * s * d[ j + 1 ], 2 * s * d[ j + 2 ] );
+		var dir = new THREE.Vector3(
+			Math.sin( a * Math.PI ) * Math.cos( b * 2 * Math.PI ),
+			Math.sin( a * Math.PI ) * Math.sin( b * 2 * Math.PI ),
+			Math.cos( a * Math.PI )
+		);
+		dir.normalize();
+		dir.multiplyScalar( r );
+		d[ j ] += dir.x;
+		d[ j + 1 ] += dir.y;
+		d[ j + 2 ] += dir.z;
+	}
+	//finalGeometry.computeVertexNormals();
+
+	mesh = new THREE.Mesh( finalGeometry, material );
+	scene.add( mesh );
+	//mesh.visible = false
+
+	mesh.receiveShadow = true;
+	mesh.castShadow = true;
+
+	var loader = new THREE.TextureLoader();
+	loader.load( '../assets/pano-pedrera.jpg', function( res ) {
+
+		var equiToCube = new EquirectangularToCubemap( renderer );
+		mesh.material.envMap = equiToCube.convert( res, 1024 );
+		mesh.material.envMapIntensity = 1;
+		mesh.material.needsUpdate = true;
+
+	});
+
+	var linesMesh = new THREE.LineSegments(
+
+		finalGeometry,
+
+		new THREE.LineBasicMaterial( {
+			color: 0xffffff,
+			transparent: true,
+			opacity: 0.35
+		} )
+
+	);
+	scene.add( linesMesh );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 20 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+	//mesh.rotation.y += .01;
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
