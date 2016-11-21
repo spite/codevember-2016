@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Conway</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../15" >Previous</a> | <a href="../17" >Next</a></p>
+			<h1>16. Conway</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/MeshCustomMaterial.js"></script>
+
+<script id="conway-vs" type="x-shader/x-vertex">
+
+attribute vec4 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	vUv.y = 1. - vUv.y;
+	gl_Position = projectionMatrix * modelViewMatrix * position;
+
+}
+
+</script>
+
+<script id="conway-fs" type="x-shader/x-fragment">
+
+precision highp float;
+
+uniform sampler2D tPositions;
+uniform vec3 dimensions;
+
+varying vec2 vUv;
+
+float sampleCell( float x, float y, float z ) {
+
+	if( x < 0. || y < 0. || z < 0. ) return 0.;
+	if( x >= dimensions.x || y > dimensions.y || z >= dimensions.z ) return 0.;
+
+	return texture2D( tPositions, vec2( x / ( dimensions.x * dimensions.z ) + z / dimensions.z, y / dimensions.y ) ).r;
+
+}
+
+float checkCell( float x, float y, float z ) {
+
+	float count = 0.;
+	float status = sampleCell( x, y, z );
+
+	for( float xi = -1.; xi <= 1.; xi++ ){
+		for( float yi = -1.; yi <= 1.; yi++ ){
+			for( float zi = -1.; zi <= 1.; zi++ ){
+				if( xi == 0. && yi == 0. && zi == 0. ) {
+				} else {
+					count += sampleCell( x + xi, y + yi, z + zi );
+				}
+			}
+		}
+	}
+
+	if( count > 4. || count < 3. ) return 0.;
+	if( count == 3. ) return 1.;
+	return status;
+
+}
+
+void main() {
+
+	float x = mod( vUv.x * dimensions.x * dimensions.y, dimensions.x );
+	float y = vUv.y * dimensions.y;
+	float z = floor( vUv.x * dimensions.y );
+	gl_FragColor = vec4( checkCell( x, y, z ), 0., 0., 1. );
+//	gl_FragColor = texture2D( tPositions, vUv );
+
+}
+
+</script>
+
+<script>
+
+'use strict';
+
+function Conway3DSimulation( renderer, width, height, depth ) {
+
+	this.width = width;
+	this.height = height;
+	this.depth = depth;
+	this.renderer = renderer;
+	this.targetPos = 0;
+
+	this.data = new Float32Array( this.width * this.height * this.depth * 4 );
+
+	var floatType = THREE.FloatType;//isMobile.apple.device ? THREE.HalfFloatType : THREE.FloatType;
+
+	this.texture = new THREE.DataTexture( this.data, this.width * this.height, this.depth, THREE.RGBAFormat, THREE.FloatType );
+	this.texture.minFilter = THREE.NearestFilter;
+	this.texture.magFilter = THREE.NearestFilter;
+
+	this.rtTexturePos = new THREE.WebGLRenderTarget( this.width * this.height, this.depth, {
+		wrapS: THREE.RepeatWrapping,
+		wrapT: THREE.RepeatWrapping,
+		minFilter: THREE.NearestFilter,
+		magFilter: THREE.NearestFilter,
+		format: THREE.RGBAFormat,
+		type: floatType,
+		stencilBuffer: false,
+	});
+
+	this.targets = [ this.rtTexturePos, this.rtTexturePos.clone() ];
+
+	this.simulationShader = new THREE.RawShaderMaterial({
+
+		uniforms: {
+			dimensions: { type: 'v3', value: new THREE.Vector3( this.width, this.height, this.depth ) },
+			tPositions: { type: "t", value: this.texture },
+			timer: { type: "f", value: 0 },
+			delta: { type: "f", value: 0 }
+		},
+
+		vertexShader: document.getElementById('conway-vs').textContent,
+		fragmentShader:  document.getElementById('conway-fs').textContent,
+		side: THREE.DoubleSide
+
+	});
+
+	this.rtScene = new THREE.Scene();
+	var w = this.width * this.height;
+	var h = this.depth;
+	this.rtCamera = new THREE.OrthographicCamera( -w / 2, w / 2, -h / 2, h / 2, -500, 1000 );
+	this.rtQuad = new THREE.Mesh(
+		new THREE.PlaneBufferGeometry( this.width * this.height, this.depth ),
+		this.simulationShader
+	);
+	this.rtScene.add( this.rtQuad );
+
+	this.renderer.render( this.rtScene, this.rtCamera, this.rtTexturePos );
+
+	this.plane = new THREE.Mesh(
+		new THREE.PlaneGeometry( this.width * this.height, this.depth ),
+		new THREE.MeshBasicMaterial( { map: this.rtTexturePos, side: THREE.DoubleSide } )
+	);
+	this.plane.scale.set( .1, .1, .1 );
+	//scene.add( this.plane );
+
+	this.randomize();
+
+}
+
+Conway3DSimulation.prototype.render = function( time, delta ) {
+
+	this.simulationShader.uniforms.timer.value = time;
+	this.simulationShader.uniforms.delta.value = delta;
+
+	this.simulationShader.uniforms.tPositions.value = this.targets[ this.targetPos ];
+	this.targetPos = 1 - this.targetPos;
+	this.renderer.render( this.rtScene, this.rtCamera, this.targets[ this.targetPos ] );
+	this.plane.material.map = this.targets[ this.targetPos ];
+
+}
+
+Conway3DSimulation.prototype.randomize = function() {
+
+	var l = this.data.length
+	for( var i = 0; i < l; i += 4 ) {
+		this.data[ i ] = Math.random() > .5 ? 1: 0;
+	}
+	this.texture.needsUpdate = true;
+
+	this.simulationShader.uniforms.tPositions.value = this.texture;
+	this.renderer.render( this.rtScene, this.rtCamera, this.targets[ this.targetPos ] );
+
+}
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+var simulation;
+
+function initScene() {
+
+	var light = new THREE.HemisphereLight( 0xffffff, 0x261b1f, 1 );
+	scene.add( light );
+
+	var light = new THREE.SpotLight( 0xffffff, .5, 0, .075, .5, .5 );
+	light.position.set( 10, 10, 10 );
+	light.target.position.set( 0, 0, 0 );
+	light.castShadow = true;
+	scene.add( light );
+
+	var light = new THREE.SpotLight( 0xffffff, .5, 0, .075, .5, .5 );
+	light.position.set( -10, 10, -10 );
+	light.target.position.set( 0, 0, 0 );
+	light.castShadow = true;
+	scene.add( light );
+
+	var boxGeometry = new THREE.BoxBufferGeometry( 2, 2, 2 )
+	var geometry = new THREE.BufferGeometry();
+
+	var boxVertices = [
+
+		-1,-1,-1,
+		-1,-1, 1,
+		-1, 1, 1,
+
+		-1,-1,-1,
+		-1, 1, 1,
+		-1, 1,-1,
+
+		1, 1,-1,
+		1,-1,-1,
+		-1,-1,-1,
+
+		1, 1,-1,
+		-1,-1,-1,
+		-1, 1,-1,
+
+		1,-1, 1,
+		-1,-1, 1,
+		-1,-1,-1,
+
+		1,-1, 1,
+		-1,-1,-1,
+		1,-1,-1,
+
+		1, 1, 1,
+		1,-1, 1,
+		1,-1,-1,
+
+		1, 1,-1,
+		1, 1, 1,
+		1,-1,-1,
+
+		-1,-1, 1,
+		1,-1, 1,
+		1, 1, 1,
+
+		-1, 1, 1,
+		-1,-1, 1,
+		1, 1, 1,
+
+		-1, 1,-1,
+		-1, 1, 1,
+		1, 1, 1,
+
+		1, 1,-1,
+		-1, 1,-1,
+		1, 1, 1
+
+	];
+
+	var boxNormals = [
+
+		1, 0, 0,
+		0, 0, 1,
+		0, 1, 0,
+		-1, 0, 0,
+		0, 0, -1,
+		0, -1, 0
+
+	];
+
+	var boxUVs = [
+
+		0, 0,
+		1, 0,
+		1, 1,
+
+		0, 1,
+		0, 0,
+		1, 1,
+
+		0, 0,
+		0, 0,
+		0, 0,
+
+		0, 0,
+		0, 0,
+		0, 0
+
+	];
+
+	var width;
+	var height;
+	var depth;
+	width = height = depth = 16;
+	var cubes = width * height * depth;
+	var positions = new Float32Array( cubes * 6 * 3 * 3 );
+	var ids = new Float32Array( cubes * 6 * 3 * 1 );
+
+	var ptr = 0;
+	var ptr2 = 0;
+
+	for( var z = 0; z < depth; z++ ) {
+		for( var y = 0; y < height; y++ ) {
+			for( var x = 0; x < width; x++ ) {
+				for( var j = 0; j < 18; j++ ) {
+					positions[ ptr ] = x;
+					positions[ ptr + 1 ] = y
+					positions[ ptr + 2 ] = z
+					ids[ ptr2 ] = j;
+					ptr += 3;
+					ptr2++;
+				}
+			}
+		}
+	}
+
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	geometry.addAttribute( 'instanceId', new THREE.BufferAttribute( ids, 1 ) );
+
+	var vars = `attribute float instanceId;
+
+uniform vec3 boxVertices[ 36 ];
+uniform vec3 boxNormals[ 6 ];
+uniform vec2 boxUVs[ 12 ];
+uniform vec3 dimensions;
+uniform float time;
+uniform sampler2D cells;
+uniform sampler2D previousCells;
+uniform float blending;
+uniform float shadow;
+uniform float useColor;
+
+float maxcomp( vec3 p ) {return max(p.x,max(p.y,p.z));}
+
+varying vec2 vUv;
+varying vec3 vColor;`;
+
+	var code = `float vi = instanceId;
+	vec3 cubePosition = .5 * ( position.xyz - .5 * dimensions );
+	vec4 cubeTransform = vec4( 1. );
+	float scale = .25 * cubeTransform.a;
+	vec3 faceNormal = boxNormals[ int( vi / 6. ) ];
+	vec2 boxUv = boxUVs[ int( mod( vi, 12. ) ) ];
+
+	vec2 uv = vec2( ( position.z * dimensions.x + position.x ) / ( dimensions.x * dimensions.z ), ( position.y / dimensions.y ) );
+	float prevState = texture2D( previousCells, uv ).r;
+	float state = texture2D( cells, uv ).r;
+	scale *= mix( prevState, state, blending );
+
+	vec3 visPosition = ( modelMatrix * vec4( cubePosition + faceNormal * scale, 1. ) ).xyz;
+	float d = dot( normalize( visPosition - cameraPosition ), normalize( ( modelMatrix * vec4( faceNormal, 1. ) ).xyz ) );
+	if( shadow == 1. ) d *= -1.;
+	vec3 boxVertex = boxVertices[ int( vi + ( 1. - step( 0., d ) ) * 18. ) ];
+	vec3 modifiedVertex = boxVertex * scale * cubeTransform.xyz;
+	transformed = cubePosition + modifiedVertex;
+
+	vUv = boxUv;
+	vColor = mix( vec3( 1. ), .5 + .25 * cubePosition / 2., useColor );
+	`;
+
+	var vs = `
+${vars}
+#define PHYSICAL
+varying vec3 vViewPosition;
+#ifndef FLAT_SHADED
+	varying vec3 vNormal;
+#endif
+#include <common>
+#include <shadowmap_pars_vertex>
+void main() {
+	#include <beginnormal_vertex>
+	#include <defaultnormal_vertex>
+	#include <begin_vertex>
+
+	${code}
+	transformedNormal = faceNormal;
+
+	#include <project_vertex>
+	vViewPosition = - mvPosition.xyz;
+	#include <worldpos_vertex>
+	#include <shadowmap_vertex>
+}`;
+
+	var fs = `#define PHYSICAL
+uniform vec3 diffuse;
+uniform vec3 emissive;
+uniform float roughness;
+uniform float metalness;
+uniform float opacity;
+varying vec3 vColor;
+varying vec2 vUv;
+#ifndef STANDARD
+	uniform float clearCoat;
+	uniform float clearCoatRoughness;
+#endif
+uniform float envMapIntensity;
+varying vec3 vViewPosition;
+#ifndef FLAT_SHADED
+	varying vec3 vNormal;
+#endif
+#include <common>
+#include <packing>
+#include <color_pars_fragment>
+#include <uv_pars_fragment>
+#include <fog_pars_fragment>
+#include <bsdfs>
+#include <lights_pars>
+#include <lights_physical_pars_fragment>
+#include <shadowmap_pars_fragment>
+void main() {
+	vec4 diffuseColor = vec4( diffuse, opacity );
+	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+	vec3 totalEmissiveRadiance = emissive;
+	#include <roughnessmap_fragment>
+	#include <metalnessmap_fragment>
+	#include <normal_flip>
+	#include <normal_fragment>
+	#include <lights_physical_fragment>
+	#include <lights_template>
+	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;
+	float edge = 1. - clamp( smoothstep( .95, 1., 2. * max( abs( vUv.x - .5 ), abs( vUv.y - .5 ) ) ), 0., 1. );
+	edge = .5 + .5 * edge;
+	gl_FragColor = vec4( edge * vColor * outgoingLight, diffuseColor.a );
+	gl_FragColor = vec4( vUv, 0., 1. );
+	#include <fog_fragment>
+}`;
+
+	var material = new MeshCustomMaterial( {
+		u: {
+			emissive : { value: new THREE.Color( 0x000000 ) },
+			roughness: { value: 1 },
+			metalness: { value: 0 },
+			envMapIntensity : { value: 1 },
+			dimensions: { type: 'v3', value: new THREE.Vector3( width, height, depth ) },
+			boxVertices: { type: '3fv', value: boxVertices },
+			boxNormals: { type: '3fv', value: boxNormals },
+			boxUVs: { type: '2fv', value: boxUVs },
+			cells: { type: 't', value: null },
+			previousCells: { type: 't', value: null },
+			time: { type: 'f', value: 0 },
+			blending: { type: 'f', value: 0 },
+			shadow: { value: 0 },
+			useColor: { value: 0 }
+		},
+		side: THREE.DoubleSide,
+		shading: THREE.FlatShading,
+		vertexShader: vs,
+		fragmentShader: fs,
+		wireframe: !true,
+		roughness: .8,
+		metalness: .1,
+	});
+
+	var depthVS = `#define DEPTH_PACKING 3201
+${vars}
+#include <common>
+void main() {
+	#include <begin_vertex>
+	${code}
+	#include <project_vertex>
+}`;
+
+	var depthFS = `#define DEPTH_PACKING 3201
+#if DEPTH_PACKING == 3200
+	uniform float opacity;
+#endif
+#include <common>
+#include <packing>
+#include <uv_pars_fragment>
+#include <map_pars_fragment>
+#include <alphamap_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+#include <clipping_planes_pars_fragment>
+void main() {
+	#include <clipping_planes_fragment>
+	vec4 diffuseColor = vec4( 1.0 );
+	#if DEPTH_PACKING == 3200
+		diffuseColor.a = opacity;
+	#endif
+	#include <map_fragment>
+	#include <alphamap_fragment>
+	#include <alphatest_fragment>
+	#include <logdepthbuf_fragment>
+	#if DEPTH_PACKING == 3200
+		gl_FragColor = vec4( vec3( gl_FragCoord.z ), opacity );
+	#elif DEPTH_PACKING == 3201
+		gl_FragColor = packDepthToRGBA( gl_FragCoord.z );
+	#endif
+}`;
+
+	var depthMaterial = new THREE.ShaderMaterial( {
+		uniforms:{
+			dimensions: { type: 'v3', value: new THREE.Vector3( width, height, depth ) },
+			boxVertices: { type: '3fv', value: boxVertices },
+			boxNormals: { type: '3fv', value: boxNormals },
+			cells: { type: 't', value: null },
+			previousCells: { type: 't', value: null },
+			time: { type: 'f', value: 0 },
+			blending: { type: 'f', value: 0 },
+			shadow: { value: 1 }
+		},
+		side: THREE.DoubleSide,
+		vertexShader: depthVS,
+		fragmentShader: depthFS,
+	} );
+
+	mesh = new THREE.Mesh(
+		geometry,
+		material
+	);
+	mesh.castShadow = true;
+	mesh.receiveShadow = true;
+	mesh.scale.set( .1, .1, .1 );
+
+	mesh.customDepthMaterial = depthMaterial;
+
+	simulation = new Conway3DSimulation( renderer, width, height, depth );
+
+	scene.add( mesh );
+
+}
+
+var blendingTime = 0;
+var timeToBlend = 500;
+var timeToMutate = 1 * timeToBlend;
+
+function update( delta ) {
+
+	mesh.material.uniforms.time.value += .1 * delta;
+	mesh.customDepthMaterial.uniforms.time.value += .1 * delta;
+
+	blendingTime += delta;
+
+	if( blendingTime > timeToMutate ) {
+		simulation.render();
+		mesh.material.uniforms.cells.value = simulation.targets[ simulation.targetPos ];
+		mesh.material.uniforms.previousCells.value = simulation.targets[ 1 - simulation.targetPos ];
+		mesh.customDepthMaterial.uniforms.cells.value = simulation.targets[ simulation.targetPos ];
+		mesh.customDepthMaterial.uniforms.previousCells.value = simulation.targets[ 1 - simulation.targetPos ];
+		blendingTime %= timeToBlend;
+	}
+
+	mesh.material.uniforms.blending.value = Maf.clamp( blendingTime / timeToBlend, 0, 1 );
+	mesh.customDepthMaterial.uniforms.blending.value = Maf.clamp( blendingTime / timeToBlend, 0, 1 );
+
+}
+
+var run = true;
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	scene.fog = new THREE.FogExp2( 0x261b1f, 1.5 );
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( .6, .6, .6 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	//controls.noZoom = true;
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	window.addEventListener( 'keydown', function( e ) {
+		if( e.keyCode === 32 ) {
+			run = !run;
+		}
+	})
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+var time = 0;
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	var t = performance.now();
+	var delta = t - time;
+
+	controls.update();
+	//mesh.rotation.y = .0005 * t;
+	if( run ) {
+		update( delta );
+	}
+	renderer.render( scene, camera );
+
+	time = t;
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
