@@ -52,7 +52,7 @@ function init() {
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
-	renderer = new THREE.WebGLRenderer( { antialias: !true, preserveDrawingBuffer: true } );
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setClearColor( 0x261b1f, 1 );
 	container.appendChild( renderer.domElement );
