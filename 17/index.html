@@ -204,111 +204,45 @@ function initScene() {
 	var light = new THREE.HemisphereLight( 0xffffff, 0x261b1f, 1 );
 	scene.add( light );
 
-	var light = new THREE.SpotLight( 0xffffff, .5, 0, .075, .5, .5 );
-	light.position.set( 10, 10, 10 );
-	light.target.position.set( 0, 0, 0 );
-	light.castShadow = true;
-	scene.add( light );
+	var light1 = new THREE.DirectionalLight( 0xffffff, .5, 0, .075, .5, .5 );
+	light1.position.set( 10, 10, 10 );
+	light1.target.position.set( 0, 0, 0 );
+	light1.castShadow = true;
+	var d = .75;
+	light1.shadow.camera.left = -d;
+	light1.shadow.camera.right = d;
+	light1.shadow.camera.top = d;
+	light1.shadow.camera.bottom = -d;
+	light1.shadow.camera.updateProjectionMatrix();
+	scene.add( light1 );
 
-	var light = new THREE.SpotLight( 0xffffff, .5, 0, .075, .5, .5 );
-	light.position.set( -10, 10, -10 );
-	light.target.position.set( 0, 0, 0 );
-	light.castShadow = true;
-	scene.add( light );
+	var light2 = new THREE.DirectionalLight( 0xffffff, .5, 0, .075, .5, .5 );
+	light2.position.set( -10, 10, -10 );
+	light2.target.position.set( 0, 0, 0 );
+	light2.castShadow = true;
+	var d = .75;
+	light2.shadow.camera.left = -d;
+	light2.shadow.camera.right = d;
+	light2.shadow.camera.top = d;
+	light2.shadow.camera.bottom = -d;
+	light2.shadow.camera.updateProjectionMatrix();
+	scene.add( light2 );
 
-	var boxGeometry = new THREE.BoxBufferGeometry( 2, 2, 2 )
+	renderer.render( scene, camera );
+	helper.attach( light1.shadow.map, 'map' );
+	helper.attach( light2.shadow.map, 'map' );
+
+	var boxGeometry = new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 2, 2, 2 ) );
 	var geometry = new THREE.BufferGeometry();
-
-	var boxVertices = [
-
-		-1,-1,-1,
-		-1,-1, 1,
-		-1, 1, 1,
-
-		-1,-1,-1,
-		-1, 1, 1,
-		-1, 1,-1,
-
-		1, 1,-1,
-		1,-1,-1,
-		-1,-1,-1,
-
-		1, 1,-1,
-		-1,-1,-1,
-		-1, 1,-1,
-
-		1,-1, 1,
-		-1,-1, 1,
-		-1,-1,-1,
-
-		1,-1, 1,
-		-1,-1,-1,
-		1,-1,-1,
-
-		1, 1, 1,
-		1,-1, 1,
-		1,-1,-1,
-
-		1, 1,-1,
-		1, 1, 1,
-		1,-1,-1,
-
-		-1,-1, 1,
-		1,-1, 1,
-		1, 1, 1,
-
-		-1, 1, 1,
-		-1,-1, 1,
-		1, 1, 1,
-
-		-1, 1,-1,
-		-1, 1, 1,
-		1, 1, 1,
-
-		1, 1,-1,
-		-1, 1,-1,
-		1, 1, 1
-
-	];
-
-	var boxNormals = [
-
-		1, 0, 0,
-		0, 0, 1,
-		0, 1, 0,
-		-1, 0, 0,
-		0, 0, -1,
-		0, -1, 0
-
-	];
-
-	var boxUVs = [
-
-		0, 0,
-		1, 0,
-		1, 1,
-
-		0, 1,
-		0, 0,
-		1, 1,
-
-		0, 0,
-		0, 0,
-		0, 0,
-
-		0, 0,
-		0, 0,
-		0, 0
-
-	];
 
 	var width;
 	var height;
 	var depth;
 	width = height = depth = 16;
+	var globalScale = 8 / width;
 	var cubes = width * height * depth;
-	var positions = new Float32Array( cubes * 6 * 3 * 3 );
-	var ids = new Float32Array( cubes * 6 * 3 * 1 );
+	var positions = new Float32Array( cubes * boxGeometry.attributes.position.count * 3 );
+	var ids = new Float32Array( cubes * boxGeometry.attributes.position.count );
 
 	var ptr = 0;
 	var ptr2 = 0;
@@ -316,10 +250,10 @@ function initScene() {
 	for( var z = 0; z < depth; z++ ) {
 		for( var y = 0; y < height; y++ ) {
 			for( var x = 0; x < width; x++ ) {
-				for( var j = 0; j < 18; j++ ) {
+				for( var j = 0; j < boxGeometry.attributes.position.count; j++ ) {
 					positions[ ptr ] = x;
-					positions[ ptr + 1 ] = y
-					positions[ ptr + 2 ] = z
+					positions[ ptr + 1 ] = y;
+					positions[ ptr + 2 ] = z;
 					ids[ ptr2 ] = j;
 					ptr += 3;
 					ptr2++;
@@ -329,13 +263,13 @@ function initScene() {
 	}
 
 	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
-	geometry.addAttribute( 'instanceId', new THREE.BufferAttribute( ids, 1 ) );
+	geometry.addAttribute( 'vertexId', new THREE.BufferAttribute( ids, 1 ) );
 
-	var vars = `attribute float instanceId;
+	var vars = `attribute float vertexId;
 
 uniform vec3 boxVertices[ 36 ];
-uniform vec3 boxNormals[ 6 ];
-uniform vec2 boxUVs[ 12 ];
+uniform vec3 boxNormals[ 36 ];
+uniform vec2 boxUVs[ 36 ];
 uniform vec3 dimensions;
 uniform float time;
 uniform sampler2D cells;
@@ -343,30 +277,25 @@ uniform sampler2D previousCells;
 uniform float blending;
 uniform float shadow;
 uniform float useColor;
-
-float maxcomp( vec3 p ) {return max(p.x,max(p.y,p.z));}
+uniform float globalScale;
 
 varying vec2 vUv;
 varying vec3 vColor;`;
 
-	var code = `float vi = instanceId;
-	vec3 cubePosition = .5 * ( position.xyz - .5 * dimensions );
-	vec4 cubeTransform = vec4( 1. );
-	float scale = .25 * cubeTransform.a;
-	vec3 faceNormal = boxNormals[ int( vi / 6. ) ];
-	vec2 boxUv = boxUVs[ int( mod( vi, 12. ) ) ];
+	var code = `float vi = vertexId;
+	vec3 cubePosition = globalScale * position.xyz;
+	float scale = globalScale * .5;
+	vec3 faceNormal = boxNormals[ int( vi ) ];
+	vec2 boxUv = boxUVs[ int( mod( vi, 36. ) ) ];
 
 	vec2 uv = vec2( ( position.z * dimensions.x + position.x ) / ( dimensions.x * dimensions.z ), ( position.y / dimensions.y ) );
 	float prevState = texture2D( previousCells, uv ).r;
 	float state = texture2D( cells, uv ).r;
 	scale *= mix( prevState, state, blending );
 
-	vec3 visPosition = ( modelMatrix * vec4( cubePosition + faceNormal * scale, 1. ) ).xyz;
-	float d = dot( normalize( visPosition - cameraPosition ), normalize( ( modelMatrix * vec4( faceNormal, 1. ) ).xyz ) );
-	if( shadow == 1. ) d *= -1.;
-	vec3 boxVertex = boxVertices[ int( vi + ( 1. - step( 0., d ) ) * 18. ) ];
-	vec3 modifiedVertex = boxVertex * scale * cubeTransform.xyz;
-	transformed = cubePosition + modifiedVertex;
+	vec3 boxVertex = boxVertices[ int( vi ) ];
+	vec3 modifiedVertex = boxVertex * scale;
+	transformed = cubePosition - .5 * globalScale * ( dimensions - 1. ) + modifiedVertex;
 
 	vUv = boxUv;
 	vColor = mix( vec3( 1. ), .5 + .25 * cubePosition / 2., useColor );
@@ -374,6 +303,13 @@ varying vec3 vColor;`;
 
 	var vs = `
 ${vars}
+
+float lookUpCellState( vec3 position ) {
+
+	vec2 uv = vec2( ( position.z * dimensions.x + position.x ) / ( dimensions.x * dimensions.z ), ( position.y / dimensions.y ) );
+	return texture2D( cells, uv ).r;
+
+}
 #define PHYSICAL
 varying vec3 vViewPosition;
 #ifndef FLAT_SHADED
@@ -432,10 +368,9 @@ void main() {
 	#include <lights_physical_fragment>
 	#include <lights_template>
 	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;
-	float edge = 1. - clamp( smoothstep( .95, 1., 2. * max( abs( vUv.x - .5 ), abs( vUv.y - .5 ) ) ), 0., 1. );
+	float edge = 1. - clamp( smoothstep( .95, 1., 2. * max( abs( mod( vUv.x, 1. ) - .5 ), abs( mod( vUv.y, 1. ) - .5 ) ) ), 0., 1. );
 	edge = .5 + .5 * edge;
 	gl_FragColor = vec4( edge * vColor * outgoingLight, diffuseColor.a );
-	gl_FragColor = vec4( vUv, 0., 1. );
 	#include <fog_fragment>
 }`;
 
@@ -446,15 +381,16 @@ void main() {
 			metalness: { value: 0 },
 			envMapIntensity : { value: 1 },
 			dimensions: { type: 'v3', value: new THREE.Vector3( width, height, depth ) },
-			boxVertices: { type: '3fv', value: boxVertices },
-			boxNormals: { type: '3fv', value: boxNormals },
-			boxUVs: { type: '2fv', value: boxUVs },
+			boxVertices: { type: '3fv', value: boxGeometry.attributes.position.array },
+			boxNormals: { type: '3fv', value: boxGeometry.attributes.normal.array },
+			boxUVs: { type: '2fv', value: boxGeometry.attributes.uv.array },
 			cells: { type: 't', value: null },
 			previousCells: { type: 't', value: null },
 			time: { type: 'f', value: 0 },
 			blending: { type: 'f', value: 0 },
 			shadow: { value: 0 },
-			useColor: { value: 0 }
+			useColor: { value: 0 },
+			globalScale: { value: globalScale }
 		},
 		side: THREE.DoubleSide,
 		shading: THREE.FlatShading,
@@ -505,12 +441,13 @@ void main() {
 	var depthMaterial = new THREE.ShaderMaterial( {
 		uniforms:{
 			dimensions: { type: 'v3', value: new THREE.Vector3( width, height, depth ) },
-			boxVertices: { type: '3fv', value: boxVertices },
-			boxNormals: { type: '3fv', value: boxNormals },
+			boxVertices: { type: '3fv', value: boxGeometry.attributes.position.array },
+			boxNormals: { type: '3fv', value: boxGeometry.attributes.normal.array },
 			cells: { type: 't', value: null },
 			previousCells: { type: 't', value: null },
 			time: { type: 'f', value: 0 },
 			blending: { type: 'f', value: 0 },
+			globalScale: { value: globalScale },
 			shadow: { value: 1 }
 		},
 		side: THREE.DoubleSide,
@@ -586,6 +523,8 @@ function init() {
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 	//controls.noZoom = true;
 
+	helper = new FBOHelper( renderer );
+
 	initScene();
 	onWindowResized();
 
@@ -609,6 +548,8 @@ function onWindowResized( event ) {
 	camera.aspect = w / h;
 	camera.updateProjectionMatrix();
 
+	helper.setSize( w,h );
+
 }
 
 var time = 0;
@@ -621,11 +562,12 @@ function animate() {
 	var delta = t - time;
 
 	controls.update();
-	//mesh.rotation.y = .0005 * t;
+	mesh.rotation.y = .0005 * t;
 	if( run ) {
 		update( delta );
 	}
 	renderer.render( scene, camera );
+	helper.update();
 
 	time = t;
 
