@@ -229,8 +229,8 @@ function initScene() {
 	scene.add( light2 );
 
 	renderer.render( scene, camera );
-	helper.attach( light1.shadow.map, 'map' );
-	helper.attach( light2.shadow.map, 'map' );
+	//helper.attach( light1.shadow.map, 'map' );
+	//helper.attach( light2.shadow.map, 'map' );
 
 	var boxGeometry = new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 2, 2, 2 ) );
 	var geometry = new THREE.BufferGeometry();
@@ -278,15 +278,12 @@ uniform float blending;
 uniform float shadow;
 uniform float useColor;
 uniform float globalScale;
-
-varying vec2 vUv;
-varying vec3 vColor;`;
+`;
 
 	var code = `float vi = vertexId;
 	vec3 cubePosition = globalScale * position.xyz;
 	float scale = globalScale * .5;
 	vec3 faceNormal = boxNormals[ int( vi ) ];
-	vec2 boxUv = boxUVs[ int( mod( vi, 36. ) ) ];
 
 	vec2 uv = vec2( ( position.z * dimensions.x + position.x ) / ( dimensions.x * dimensions.z ), ( position.y / dimensions.y ) );
 	float prevState = texture2D( previousCells, uv ).r;
@@ -296,9 +293,6 @@ varying vec3 vColor;`;
 	vec3 boxVertex = boxVertices[ int( vi ) ];
 	vec3 modifiedVertex = boxVertex * scale;
 	transformed = cubePosition - .5 * globalScale * ( dimensions - 1. ) + modifiedVertex;
-
-	vUv = boxUv;
-	vColor = mix( vec3( 1. ), .5 + .25 * cubePosition / 2., useColor );
 	`;
 
 	var vs = `
@@ -306,10 +300,24 @@ ${vars}
 
 float lookUpCellState( vec3 position ) {
 
+	if( position.x < 0. || position.y < 0. || position.z < 0. ||
+		position.x >= dimensions.x || position.y >= dimensions.y || position.z >= dimensions.z ) {
+			return 0.;
+		}
+
 	vec2 uv = vec2( ( position.z * dimensions.x + position.x ) / ( dimensions.x * dimensions.z ), ( position.y / dimensions.y ) );
-	return texture2D( cells, uv ).r;
+	float r = texture2D( cells, uv ).r;
+	if( r > 0. ) return 1.;
+	return 0.;
 
 }
+
+varying vec2 vUv;
+varying vec3 vColor;
+varying vec4 vCorners;
+varying vec4 vEdges;
+varying float vScale;
+
 #define PHYSICAL
 varying vec3 vViewPosition;
 #ifndef FLAT_SHADED
@@ -323,6 +331,71 @@ void main() {
 	#include <begin_vertex>
 
 	${code}
+
+	vCorners = vec4( 1. );
+	vCorners.x = 1.;
+	vCorners.y = 0.;
+	vCorners.z = 0.;
+	vCorners.w = 1.;
+
+	vEdges = vec4( 0. );
+
+	if( faceNormal.y == 1. ){
+		vEdges = vec4(
+			lookUpCellState( position.xyz + vec3( -1., 1., 0. ) ),
+			lookUpCellState( position.xyz + vec3(  1., 1., 0. ) ),
+			lookUpCellState( position.xyz + vec3(  0., 1., -1. ) ),
+			lookUpCellState( position.xyz + vec3(  0., 1., 1. ) )
+		);
+	}
+
+	if( faceNormal.y == -1. ){
+		vEdges = vec4(
+			lookUpCellState( position.xyz + vec3( -1., -1., 0. ) ),
+			lookUpCellState( position.xyz + vec3(  1., -1., 0. ) ),
+			lookUpCellState( position.xyz + vec3(  0., -1., 1. ) ),
+			lookUpCellState( position.xyz + vec3(  0., -1., -1. ) )
+		);
+	}
+
+	if( faceNormal.x == 1. ){
+		vEdges = vec4(
+			lookUpCellState( position.xyz + vec3( 1.,  0., 1. ) ),
+			lookUpCellState( position.xyz + vec3( 1.,  0., -1. ) ),
+			lookUpCellState( position.xyz + vec3( 1.,  1., 0. ) ),
+			lookUpCellState( position.xyz + vec3( 1., -1., 0. ) )
+		);
+	}
+
+	if( faceNormal.x == -1. ){
+		vEdges = vec4(
+			lookUpCellState( position.xyz + vec3( -1.,  0., -1. ) ),
+			lookUpCellState( position.xyz + vec3( -1.,  0., 1. ) ),
+			lookUpCellState( position.xyz + vec3( -1.,  1., 0. ) ),
+			lookUpCellState( position.xyz + vec3( -1., -1., 0. ) )
+		);
+	}
+
+	if( faceNormal.z == 1. ){
+		vEdges = vec4(
+			lookUpCellState( position.xyz + vec3( -1.,  0., 1. ) ),
+			lookUpCellState( position.xyz + vec3(  1.,  0., 1. ) ),
+			lookUpCellState( position.xyz + vec3(  0.,  1., 1. ) ),
+			lookUpCellState( position.xyz + vec3(  0., -1., 1. ) )
+		);
+	}
+
+	if( faceNormal.z == -1. ){
+		vEdges = vec4(
+			lookUpCellState( position.xyz + vec3(  1.,  0., -1. ) ),
+			lookUpCellState( position.xyz + vec3( -1.,  0., -1. ) ),
+			lookUpCellState( position.xyz + vec3(  0.,  1., -1. ) ),
+			lookUpCellState( position.xyz + vec3(  0., -1., -1. ) )
+		);
+	}
+
+	vUv = boxUVs[ int( mod( vi, 36. ) ) ];
+	vColor = mix( vec3( 1. ), .5 + .25 * cubePosition / 2., useColor );
 	transformedNormal = faceNormal;
 
 	#include <project_vertex>
@@ -337,8 +410,11 @@ uniform vec3 emissive;
 uniform float roughness;
 uniform float metalness;
 uniform float opacity;
+varying float vScale;
 varying vec3 vColor;
 varying vec2 vUv;
+varying vec4 vCorners;
+varying vec4 vEdges;
 #ifndef STANDARD
 	uniform float clearCoat;
 	uniform float clearCoatRoughness;
@@ -368,9 +444,17 @@ void main() {
 	#include <lights_physical_fragment>
 	#include <lights_template>
 	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;
-	float edge = 1. - clamp( smoothstep( .95, 1., 2. * max( abs( mod( vUv.x, 1. ) - .5 ), abs( mod( vUv.y, 1. ) - .5 ) ) ), 0., 1. );
-	edge = .5 + .5 * edge;
-	gl_FragColor = vec4( edge * vColor * outgoingLight, diffuseColor.a );
+	float grid = 1. - clamp( smoothstep( .95, 1., 2. * max( abs( mod( vUv.x, 1. ) - .5 ), abs( mod( vUv.y, 1. ) - .5 ) ) ), 0., 1. );
+	grid = .75 + .25 * grid;
+
+	vec2 uv = vUv;
+	vec2 st = 1.0 - uv;
+	vec4 corners = vec4( st.x, uv.x, uv.y, st.y ) * vCorners;
+	vec4 edges = smoothstep( .75, 1., ( vec4( st.x, uv.x, uv.y, st.y ) * vEdges ) );
+	float edge = 1. - .25 * ( edges.x + edges.y + edges.z + edges.w );
+	edge = clamp( edge, 0., 1. );
+	gl_FragColor = vec4( grid * vColor * edge * outgoingLight, diffuseColor.a );
+	//gl_FragColor = vec4( vec3( edge ), 1. );
 	#include <fog_fragment>
 }`;
 
@@ -473,7 +557,7 @@ void main() {
 
 var blendingTime = 0;
 var timeToBlend = 500;
-var timeToMutate = 1 * timeToBlend;
+var timeToMutate = 2 * timeToBlend;
 
 function update( delta ) {
 
@@ -506,9 +590,10 @@ function init() {
 
 	scene.fog = new THREE.FogExp2( 0x261b1f, 1.5 );
 
-	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .0001, 100 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( .6, .6, .6 );
+	camera.position.set( .7, .7, .7 );
+	//camera.position.set( 0, 0, 1 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
@@ -562,7 +647,7 @@ function animate() {
 	var delta = t - time;
 
 	controls.update();
-	mesh.rotation.y = .0005 * t;
+	//mesh.rotation.y = .0005 * t;
 	if( run ) {
 		update( delta );
 	}
