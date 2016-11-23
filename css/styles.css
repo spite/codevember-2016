@@ -30,6 +30,8 @@ body {
 	top: 0;
 	right: 0;
 	bottom: 0;
+	width: 100%;
+	height: 100%;
 }
 #info{
 	position: absolute;
@@ -85,3 +87,10 @@ b{
 	cursor:pointer;
 	pointer-events: auto;
 }
+.active{ font-weight: bold; opacity: 1;}
+:-webkit-full-screen, :fullscreen, :-ms-fullscreen, :-moz-full-screen {
+position: fixed;
+width: 100%;
+height: 100%;
+top: 0;
+background: none;}
