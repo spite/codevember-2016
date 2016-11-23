@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 	<head>
-		<title>FOV Tunnel</title>
+		<title>DOF Tunnel</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
@@ -14,7 +14,7 @@
 		<div id="container"></div>
 		<div id="info" >
 			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
-			<h1>5. FOV Tunnel</h1>
+			<h1>5. DOF Tunnel</h1>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -23,6 +23,7 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/CurveExtras.js"></script>
+		<script src="../js/isMobile.min.js"></script>
 
 <script id="particle-vs" type="x-shader/x-vertex">
 precision highp float;
@@ -57,7 +58,7 @@ void main() {
 	vUv = uvs[ id ];
 
 	gl_Position = projectionMatrix * p;
-	vDepth = clamp( gl_Position.z / 50., 0., 1. );
+	vDepth = clamp( gl_Position.z / 100., 0., 1. );
 
 }
 
@@ -72,6 +73,7 @@ varying float vDepth;
 
 uniform float opacity;
 uniform float shadow;
+uniform vec3 fogColor;
 
 void main() {
 
@@ -83,7 +85,7 @@ void main() {
 	if( shadow == 1. ) {
 		gl_FragColor = vec4( vec3( vDepth), 1. );
 	} else {
-		gl_FragColor = vec4( vec3( 1. ), a );
+		gl_FragColor = vec4( mix( fogColor, vec3( 1. ), 1. - vDepth ), a );
 	}
 
 }
@@ -103,7 +105,7 @@ varying float vDepth;
 void main() {
 
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
-	vDepth = clamp( gl_Position.z / 50., 0., 1. );
+	vDepth = clamp( gl_Position.z / 100., 0., 1. );
 
 }
 </script>
@@ -142,27 +144,162 @@ void main() {
 <script type="x-shader/x-fragment" id="shift-fs" >
 precision highp float;
 
+varying vec2 vUv;
 uniform sampler2D inputTexture;
+uniform vec2 delta;
 uniform vec2 resolution;
 
-varying vec2 vUv;
+void main() {
 
-void main(){
+	vec2 dir = vUv - vec2( .5 );
+	float d = .7 * length( dir );
+	normalize( dir );
+	vec2 value = d * dir * delta;
 
-	vec2 inc = vec2( 10., 0. ) / resolution;
+	vec4 c1 = texture2D( inputTexture, vUv - value / resolution.x );
+	vec4 c2 = texture2D( inputTexture, vUv );
+	vec4 c3 = texture2D( inputTexture, vUv + value / resolution.y );
 
-	float r = texture2D( inputTexture, vUv - inc.xy ).r;
-	float g = texture2D( inputTexture, vUv ).g;
-	float b = texture2D( inputTexture, vUv + inc.xy ).b;
-
-	vec3 color = vec3( r, g, b );
-
-	gl_FragColor = vec4( color, 1. );
+	gl_FragColor = vec4( c1.r, c2.g, c3.b, c1.a + c2.a + c3.b );
 
 }
 
 </script>
 
+<script type="x-shader/x-fragment" id="chromatic-aberration-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+
+vec2 barrelDistortion(vec2 coord, float amt) {
+	vec2 cc = coord - 0.5;
+	float dist = dot(cc, cc);
+	return coord + cc * dist * amt;
+}
+
+float sat( float t )
+{
+	return clamp( t, 0.0, 1.0 );
+}
+
+float linterp( float t ) {
+	return sat( 1.0 - abs( 2.0*t - 1.0 ) );
+}
+
+float remap( float t, float a, float b ) {
+	return sat( (t - a) / (b - a) );
+}
+
+vec4 spectrum_offset( float t ) {
+	vec4 ret;
+	float lo = step(t,0.5);
+	float hi = 1.0-lo;
+	float w = linterp( remap( t, 1.0/6.0, 5.0/6.0 ) );
+	ret = vec4(lo,1.0,hi, 1.) * vec4(1.0-w, w, 1.0-w, 1.);
+
+	return pow( ret, vec4(1.0/2.2) );
+}
+
+const float max_distort = 1.5;//2.2;
+const int num_iter = 12;
+const float reci_num_iter_f = 1.0 / float(num_iter);
+
+void main()
+{
+	vec2 uv=(gl_FragCoord.xy/resolution.xy*.5)+.25;
+
+	vec4 sumcol = vec4(0.0);
+	vec4 sumw = vec4(0.0);
+	for ( int i=0; i<num_iter;++i )
+	{
+		float t = float(i) * reci_num_iter_f;
+		vec4 w = spectrum_offset( t );
+		sumw += w;
+		sumcol += w * texture2D( inputTexture, barrelDistortion(uv, .6 * max_distort*t ) );
+	}
+
+	gl_FragColor = sumcol / sumw;
+}
+
+
+</script>
+
+<script type="x-shader/x-fragment" id="poisson-fs" >
+precision highp float;
+
+float nrand( vec2 n ) {
+	return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+vec2 rot2d( vec2 p, float a ) {
+	vec2 sc = vec2(sin(a),cos(a));
+	return vec2( dot( p, vec2(sc.y, -sc.x) ), dot( p, sc.xy ) );
+}
+
+const int NUM_TAPS = 27;
+const float rcp_maxdist = 1.0 / 4.22244;
+
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+uniform float time;
+
+varying vec2 vUv;
+
+void main() {
+
+    vec2 uv = vUv;
+
+    float max_siz = 16.;
+
+	vec2 fTaps_Poisson[NUM_TAPS];
+    fTaps_Poisson[0]  = rcp_maxdist * vec2(  -0.8835609, 2.523391 );
+    fTaps_Poisson[1]  = rcp_maxdist * vec2(  -1.387375, 1.056318 );
+    fTaps_Poisson[2]  = rcp_maxdist * vec2(  -2.854452, 1.313645 );
+    fTaps_Poisson[3]  = rcp_maxdist * vec2(  0.6326182, 1.14569 );
+    fTaps_Poisson[4]  = rcp_maxdist * vec2(  1.331515, 3.637297 );
+    fTaps_Poisson[5]  = rcp_maxdist * vec2(  -2.175307, 3.885795 );
+    fTaps_Poisson[6]  = rcp_maxdist * vec2(  -0.5396664, 4.1938 );
+    fTaps_Poisson[7]  = rcp_maxdist * vec2(  -0.6708734, -0.36875 );
+    fTaps_Poisson[8]  = rcp_maxdist * vec2(  -2.083908, -0.6921188 );
+    fTaps_Poisson[9]  = rcp_maxdist * vec2(  -3.219028, 2.85465 );
+    fTaps_Poisson[10] = rcp_maxdist * vec2(  -1.863933, -2.742254 );
+    fTaps_Poisson[11] = rcp_maxdist * vec2(  -4.125739, -1.283028 );
+    fTaps_Poisson[12] = rcp_maxdist * vec2(  -3.376766, -2.81844 );
+    fTaps_Poisson[13] = rcp_maxdist * vec2(  -3.974553, 0.5459405 );
+    fTaps_Poisson[14] = rcp_maxdist * vec2(  3.102514, 1.717692 );
+    fTaps_Poisson[15] = rcp_maxdist * vec2(  2.951887, 3.186624 );
+    fTaps_Poisson[16] = rcp_maxdist * vec2(  1.33941, -0.166395 );
+    fTaps_Poisson[17] = rcp_maxdist * vec2(  2.814727, -0.3216669 );
+    fTaps_Poisson[18] = rcp_maxdist * vec2(  0.7786853, -2.235639 );
+    fTaps_Poisson[19] = rcp_maxdist * vec2(  -0.7396695, -1.702466 );
+    fTaps_Poisson[20] = rcp_maxdist * vec2(  0.4621856, -3.62525 );
+    fTaps_Poisson[21] = rcp_maxdist * vec2(  4.181541, 0.5883132 );
+    fTaps_Poisson[22] = rcp_maxdist * vec2(  4.22244, -1.11029 );
+    fTaps_Poisson[23] = rcp_maxdist * vec2(  2.116917, -1.789436 );
+    fTaps_Poisson[24] = rcp_maxdist * vec2(  1.915774, -3.425885 );
+    fTaps_Poisson[25] = rcp_maxdist * vec2(  3.142686, -2.656329 );
+    fTaps_Poisson[26] = rcp_maxdist * vec2(  -1.108632, -4.023479 );
+
+    vec4 sum = vec4(0);
+    vec2 seed = uv + fract( time );
+    float rnd = 6.28 * nrand( seed );
+
+    vec4 basis = vec4( rot2d(vec2(1,0),rnd), rot2d(vec2(0,1),rnd) );
+    for (int i=0; i < NUM_TAPS; i++)
+    {
+        vec2 ofs = fTaps_Poisson[i]; ofs = vec2(dot(ofs,basis.xz),dot(ofs,basis.yw) );
+        //vec2 ofs = rot2d( fTaps_Poisson[i], rnd );
+        vec2 texcoord = uv + max_siz * ofs / resolution.xy;
+        sum += texture2D(inputTexture, texcoord, -10.0);
+    }
+
+    gl_FragColor = sum / vec4(NUM_TAPS);
+
+
+  }
+
+  </script>
 <script type="x-shader/x-fragment" id="blur-fs" >
 precision highp float;
 
@@ -192,6 +329,86 @@ void main(){
 }
 </script>
 
+<script type="x-shader/x-fragment" id="combine-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform sampler2D glowTexture;
+uniform sampler2D flareTexture;
+uniform vec2 resolution;
+
+varying vec2 vUv;
+
+void main() {
+
+	vec4 color = texture2D( inputTexture, vUv );
+
+	vec4 glow1 = texture2D( glowTexture, vUv, 1. );
+	vec4 glow2 = texture2D( glowTexture, vUv, 2. );
+	vec4 glow4 = texture2D( glowTexture, vUv, 4. );
+	vec4 glow8 = texture2D( glowTexture, vUv, 8. );
+	vec4 glow16 = texture2D( glowTexture, vUv, 16. );
+
+	vec4 glow = glow1;
+	glow += glow2;
+	glow += glow4;
+	glow += glow8;
+	glow += glow16;
+	glow /= 5.;
+	glow = clamp( glow, vec4( 0. ), vec4( 1. ) );
+
+	color += glow;
+
+	vec2 vUv2 = vUv;
+
+	float aspectRatio2 = 1.;
+	float aspectRatio = resolution.x / resolution.y;
+
+	if( aspectRatio2 > aspectRatio ) {
+		vUv2.x = vUv.x * aspectRatio / aspectRatio2;
+		vUv2.x += .5 * ( 1. - aspectRatio / aspectRatio2 );
+		vUv2.y = vUv.y;
+	}
+
+	if( aspectRatio2 < aspectRatio ) {
+		vUv2.x = vUv.x;
+		vUv2.y = vUv.y * aspectRatio2 / aspectRatio;
+		vUv2.y += .5 * ( 1. - aspectRatio2 / aspectRatio );
+	}
+
+	color += smoothstep( 0., .4, glow8 + glow16 ) * texture2D( flareTexture, vUv2 );
+
+	gl_FragColor = color;
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="gather-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform sampler2D sharpTexture;
+uniform sampler2D depthTexture;
+uniform vec2 resolution;
+
+varying vec2 vUv;
+
+void main() {
+
+	vec4 blur = texture2D( inputTexture, vUv );
+	vec4 sharp = texture2D( sharpTexture, vUv );
+	float d = texture2D( depthTexture, vUv ).r;
+	float depth = smoothstep( .0, .5, d + .1 );
+	//depth = 1. - smoothstep( .0, .3, d );
+   	depth = clamp( depth, 0., 1. );
+	vec4 color = mix( sharp, blur, depth );
+
+	gl_FragColor = color;
+	//gl_FragColor = vec4( depth, depth, depth, 1. );
+
+}
+</script>
+
 <script type="x-shader/x-fragment" id="final-fs" >
 precision highp float;
 
@@ -209,83 +426,94 @@ uniform float time;
 
 varying vec2 vUv;
 
-#define FXAA_REDUCE_MIN   (1.0/128.0)
-#define FXAA_REDUCE_MUL   (1.0/8.0)
-#define FXAA_SPAN_MAX     8.0
-
 float random(vec2 n, float offset ){
 	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
 }
 
-void main() {
+float applyOverlayToChannel( float base, float blend ) {
 
-    vec2 res = 1. / resolution;
+	return (base < 0.5 ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend)));
 
-    vec3 rgbNW = texture2D( inputTexture, ( vUv.xy + vec2( -1.0, -1.0 ) * res ) ).xyz;
-    vec3 rgbNE = texture2D( inputTexture, ( vUv.xy + vec2( 1.0, -1.0 ) * res ) ).xyz;
-    vec3 rgbSW = texture2D( inputTexture, ( vUv.xy + vec2( -1.0, 1.0 ) * res ) ).xyz;
-    vec3 rgbSE = texture2D( inputTexture, ( vUv.xy + vec2( 1.0, 1.0 ) * res ) ).xyz;
-    vec4 rgbaM  = texture2D( inputTexture,  vUv.xy  * res );
-    vec3 rgbM  = rgbaM.xyz;
-    vec3 luma = vec3( 0.299, 0.587, 0.114 );
+}
 
-    float lumaNW = dot( rgbNW, luma );
-    float lumaNE = dot( rgbNE, luma );
-    float lumaSW = dot( rgbSW, luma );
-    float lumaSE = dot( rgbSE, luma );
-    float lumaM  = dot( rgbM,  luma );
-    float lumaMin = min( lumaM, min( min( lumaNW, lumaNE ), min( lumaSW, lumaSE ) ) );
-    float lumaMax = max( lumaM, max( max( lumaNW, lumaNE) , max( lumaSW, lumaSE ) ) );
+#define FXAA_SPAN_MAX 256.0
+#define FXAA_REDUCE_MUL   (1.0/FXAA_SPAN_MAX)
+#define FXAA_REDUCE_MIN   (1.0/128.0)
+#define FXAA_SUBPIX_SHIFT (1.0/4.0)
+
+vec3 FxaaPixelShader( vec4 uv, sampler2D tex, vec2 rcpFrame) {
+
+    vec3 rgbNW = texture2D(tex, uv.zw ).xyz;
+    vec3 rgbNE = texture2D(tex, uv.zw + vec2(1,0)*rcpFrame.xy ).xyz;
+    vec3 rgbSW = texture2D(tex, uv.zw + vec2(0,1)*rcpFrame.xy ).xyz;
+    vec3 rgbSE = texture2D(tex, uv.zw + vec2(1,1)*rcpFrame.xy ).xyz;
+    vec3 rgbM  = texture2D(tex, uv.xy ).xyz;
+
+    vec3 luma = vec3(0.299, 0.587, 0.114);
+    float lumaNW = dot(rgbNW, luma);
+    float lumaNE = dot(rgbNE, luma);
+    float lumaSW = dot(rgbSW, luma);
+    float lumaSE = dot(rgbSE, luma);
+    float lumaM  = dot(rgbM,  luma);
+
+    float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+    float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
 
     vec2 dir;
     dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
     dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
 
-    float dirReduce = max( ( lumaNW + lumaNE + lumaSW + lumaSE ) * ( 0.25 * FXAA_REDUCE_MUL ), FXAA_REDUCE_MIN );
+    float dirReduce = max(
+        (lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL),
+        FXAA_REDUCE_MIN);
+    float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);
 
-    float rcpDirMin = 1.0 / ( min( abs( dir.x ), abs( dir.y ) ) + dirReduce );
-    dir = min( vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX),
-          max( vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
-                dir * rcpDirMin)) * res;
-    vec4 rgbA = (1.0/2.0) * (
-    texture2D(inputTexture,  vUv.xy + dir * (1.0/3.0 - 0.5)) +
-    texture2D(inputTexture,  vUv.xy + dir * (2.0/3.0 - 0.5)));
-    vec4 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (
-    texture2D(inputTexture,  vUv.xy + dir * (0.0/3.0 - 0.5)) +
-    texture2D(inputTexture,  vUv.xy + dir * (3.0/3.0 - 0.5)));
-    float lumaB = dot(rgbB, vec4(luma, 0.0));
+    dir = min(vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX),
+          max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
+          dir * rcpDirMin)) * rcpFrame.xy;
 
+    vec3 rgbA = (1.0/2.0) * (
+        texture2D(tex, uv.xy + dir * (1.0/3.0 - 0.5) ).xyz +
+        texture2D(tex, uv.xy + dir * (2.0/3.0 - 0.5) ).xyz);
+    vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (
+        texture2D(tex, uv.xy + dir * (0.0/3.0 - 0.5) ).xyz +
+        texture2D(tex, uv.xy + dir * (3.0/3.0 - 0.5) ).xyz);
+
+    float lumaB = dot(rgbB, luma);
+
+    if((lumaB < lumaMin) || (lumaB > lumaMax)) return rgbA;
+
+    return rgbB;
+}
+
+// https://www.shadertoy.com/view/ls3GWS
+
+void main() {
+
+    vec2 res = 1. / resolution;
+
+   	vec4 aauv = vec4( vUv, vUv - (res * (0.5 + FXAA_SUBPIX_SHIFT)));
     vec4 color;
-    if ( ( lumaB < lumaMin ) || ( lumaB > lumaMax ) ) {
-        color = rgbA;
-    } else {
-        color = rgbB;
-    }
+    color.rgb = FxaaPixelShader( aauv, inputTexture, res );
 
     vec2 position = ( gl_FragCoord.xy / resolution ) - .5;
 	float vignette = length( position );
     vignette = boost - vignette * reduction;
 
-    color.rgb *= vignette;
+    color.rgb = vec3(
+		applyOverlayToChannel( color.r, vignette ),
+		applyOverlayToChannel( color.g, vignette ),
+		applyOverlayToChannel( color.b, vignette )
+	);
 
     color += vec4( vec3( amount * random( vUv, time ) ), 1. );
 
-    //float gamma = 1.2;
-    //color.rgb = pow(color.rgb, vec3(1.0/gamma));
-
-    vec3 blur = texture2D( blurTexture, vUv ).rgb;
-    vec3 glow = texture2D( glowTexture, vUv, 2. ).rgb;
-    glow += texture2D( glowTexture, vUv, 4. ).rgb;
-    glow += texture2D( glowTexture, vUv, 8. ).rgb;
-    glow += texture2D( glowTexture, vUv, 16. ).rgb;
-    glow = clamp( glow, vec3( 0. ), vec3( 1. ) );
-
-   	float depth = texture2D( depthTexture, vUv ).r;
-   	depth = clamp( exp( 2. * depth ) - 2., 0., 1. );
-	color.rgb = mix( color.rgb, blur.rgb, depth );
-   	color.rgb *= .5 + .5 * sin( vUv.y * resolution.y );
-   	//color.rgb = vec3( 1. ) - ( vec3( 1. ) - color.rgb ) * ( vec3( 1. ) - glow );
-   	color.rgb += glow;
+   /* float interlace = .85 + .15 * smoothstep( .25, .75, sin( vUv.y * 1. * resolution.y ) );
+    color.rgb = vec3(
+		applyOverlayToChannel( color.r, interlace ),
+		applyOverlayToChannel( color.g, interlace ),
+		applyOverlayToChannel( color.b, interlace )
+	);*/
 
     gl_FragColor = color;
 
@@ -313,15 +541,15 @@ var container = document.getElementById( 'container' );
 
 function initScene() {
 
-	var segments = 200;
+	var segments = 400;
 	var closed2 = false;
-	var radiusSegments = 5;
+	var radiusSegments = 36;
 
 	if ( mesh !== undefined ) parent.remove( mesh );
 
 	var extrudePath = new THREE.Curves.TorusKnot( 20 )
 
-	geometry = new THREE.TubeBufferGeometry( extrudePath, segments, 5, radiusSegments, closed2 );
+	geometry = new THREE.TubeBufferGeometry( extrudePath, segments, 4, radiusSegments, closed2 );
 
 	material = new THREE.MeshBasicMaterial( {
 		map: new THREE.TextureLoader().load( '../assets/palette3.png' ),
@@ -355,7 +583,7 @@ function initScene() {
 
 	scene.add( mesh );
 
-	var particles = 5000;
+	var particles = 2000;
 	var pointsGeometry = new THREE.BufferGeometry();
 	var positions = new Float32Array( particles * 3 * 3 );
 	var indices = new Float32Array( particles * 3 * 1 );
@@ -365,7 +593,7 @@ function initScene() {
 	for( var j = 0; j < particles * 3; j++ ){
 		var t = j / particles;
 		var p = geometry.parameters.path.getPointAt( t );
-		var r = 4;
+		var r = 3;
 		p.x += Maf.randomInRange( -r, r );
 		p.y += Maf.randomInRange( -r, r );
 		p.z += Maf.randomInRange( -r, r );
@@ -400,7 +628,8 @@ function initScene() {
 				new THREE.Vector3( 1, 1 ),
 				new THREE.Vector3( .5, 0 )
 			]},
-			opacity: { type: 'f', value: .5 }
+			opacity: { type: 'f', value: 1. },
+			fogColor: { type: 'c', value: scene.fog.color.clone() }
 		},
 		vertexShader: document.getElementById( 'particle-vs' ).textContent,
 		fragmentShader: document.getElementById( 'particle-fs' ).textContent,
@@ -431,9 +660,10 @@ function createRenderTarget() {
 }
 
 var orthoQuad, orthoCamera, orthoScene;
-var baseFBO, glowFBO, rgbShiftFBO, blur1FBO, blur2FBO, depthFBO;
+var baseFBO, glowFBO, combinedFBO, rgbShiftFBO, blur1FBO, blur2FBO, depthFBO, finalFBO;
 var resolution = new THREE.Vector2();
-var finalShader, shiftShader, blurShader;
+var combineShader, finalShader, shiftShader, blurShader, gatherShader;
+var cameraDummy = new THREE.Object3D();
 
 function init() {
 
@@ -441,17 +671,17 @@ function init() {
 
 	scene = new THREE.Scene();
 
-	scene.fog = new THREE.FogExp2( 0xc84444 >> 1, .05 );
+	scene.fog = new THREE.FogExp2( 0xb70000, .0125 );
+	scene.fog = new THREE.FogExp2( 0x8080ff, .0125 );
 
-	camera = new THREE.PerspectiveCamera( 90, window.innerWidth / window.innerHeight, .1, 100 );
-	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 200 );
-	camera.lookAt( camera.target );
-	scene.add( camera );
+	camera = new THREE.PerspectiveCamera( 80, window.innerWidth / window.innerHeight, .1, 100 );
+	camera.position.z = 1;
+	cameraDummy.add( camera );
+	scene.add( cameraDummy );
 
 	renderer = new THREE.WebGLRenderer( { antialias: false } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x261b1f, 1 );
+	renderer.setClearColor( 0, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
@@ -461,19 +691,32 @@ function init() {
 
 	baseFBO = createRenderTarget();
 	glowFBO = createRenderTarget();
+	combinedFBO = createRenderTarget();
 	depthFBO = createRenderTarget();
 	rgbShiftFBO = createRenderTarget();
 	blur1FBO = createRenderTarget();
 	blur2FBO = createRenderTarget();
+	finalFBO = createRenderTarget();
 
 	glowFBO.texture.minFilter = THREE.LinearMipMapLinearFilter;
 	glowFBO.texture.wrapS = blur2FBO.texture.wrapT = THREE.ClampToEdgeWrapping;
+
+	combineShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			inputTexture: { type: 't', value: baseFBO.texture },
+			glowTexture: { type: 't', value: glowFBO.texture },
+			flareTexture: { type: 't', value: new THREE.TextureLoader().load( '../assets/lens_flare_tex.jpg') },
+			resolution: { type: 'v2', value: resolution }
+		},
+		vertexShader: document.getElementById('ortho-vs').textContent,
+		fragmentShader: document.getElementById('combine-fs').textContent,
+	} );
 
 	shiftShader = new THREE.RawShaderMaterial( {
 		uniforms: {
 			inputTexture: { type: 't', value: baseFBO.texture },
 			resolution: { type: 'v2', value: resolution },
-			delta: { type: 'v2', value: new THREE.Vector2( 10, 0 ) }
+			delta: { type: 'v2', value: new THREE.Vector2( 0, 0 ) }
 		},
 		vertexShader: document.getElementById('ortho-vs').textContent,
 		fragmentShader: document.getElementById('shift-fs').textContent,
@@ -483,22 +726,31 @@ function init() {
 		uniforms: {
 			inputTexture: { type: 't', value: baseFBO.texture },
 			resolution: { type: 'v2', value: resolution },
-			delta: { type: 'v2', value: new THREE.Vector2( 10, 0 ) }
+			delta: { type: 'v2', value: new THREE.Vector2( 10, 0 ) },
+			time: { type: 'f', value: 0 }
 		},
 		vertexShader: document.getElementById('ortho-vs').textContent,
-		fragmentShader: document.getElementById('blur-fs').textContent,
+		fragmentShader: document.getElementById('poisson-fs').textContent,
+	} );
+
+	gatherShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			inputTexture: { type: 't', value: baseFBO.texture },
+			sharpTexture: { type: 't', value: baseFBO.texture },
+			depthTexture: { type: 't', value: baseFBO.texture },
+			resolution: { type: 'v2', value: resolution },
+		},
+		vertexShader: document.getElementById('ortho-vs').textContent,
+		fragmentShader: document.getElementById('gather-fs').textContent,
 	} );
 
 	finalShader = new THREE.RawShaderMaterial( {
 		uniforms: {
 			inputTexture: { type: 't', value: baseFBO.texture },
-			glowTexture: { type: 't', value: glowFBO.texture },
-			blurTexture: { type: 't', value: blur2FBO.texture },
-			depthTexture: { type: 't', value: depthFBO.texture },
 			resolution: { type: 'v2', value: resolution },
-			boost: { type: 'f', value: 1.1 },
-			reduction: { type: 'f', value: .9 },
-			amount: { type: 'f', value: .1 },
+			boost: { type: 'f', value: 1 },
+			reduction: { type: 'f', value: 1.2 },
+			amount: { type: 'f', value: .05 },
 			time: { type: 'f', value: 0 }
 		},
 		vertexShader: document.getElementById('ortho-vs').textContent,
@@ -528,18 +780,20 @@ function onWindowResized( event ) {
 	camera.aspect = w / h;
 	camera.updateProjectionMatrix();
 
-	var dPR = window.devicePixelRatio;
+	var dPR = renderer.getPixelRatio();
 	resolution.set( w * dPR, h * dPR );
 
-	var sW = 512;
-	var sH = 512;
+	var sW = Maf.nextPowerOfTwo( w ) / 2;
+	var sH = Maf.nextPowerOfTwo( h ) / 2;
 
 	baseFBO.setSize( w * dPR, h * dPR );
+	combinedFBO.setSize( w * dPR, h * dPR );
 	depthFBO.setSize( sW, sH );
 	glowFBO.setSize( sW, sH );
 	rgbShiftFBO.setSize( w * dPR, h * dPR );
 	blur1FBO.setSize( sW, sH );
 	blur2FBO.setSize( sW, sH );
+	finalFBO.setSize( w * dPR, h * dPR );
 
 	orthoQuad.scale.set( w, h, 1 );
 
@@ -554,8 +808,9 @@ function onWindowResized( event ) {
 function animate() {
 
 	requestAnimationFrame( animate );
+	controls.update();
 
-	var time = .0005 * performance.now();
+	var time = .0001 * performance.now();
 	var looptime = 20;
 	var t = ( time % looptime ) / looptime;
 
@@ -581,13 +836,17 @@ function animate() {
 
 	pos.add( normal.clone().multiplyScalar( offset ) );
 
-	camera.position.copy( pos );
+	cameraDummy.position.copy( pos );
 
 	var lookAt = geometry.parameters.path.getPointAt( ( t + 30 / geometry.parameters.path.getLength() ) % 1 ).multiplyScalar( scale );
 
 	lookAt.copy( pos ).add( dir );
-	camera.matrix.lookAt(camera.position, lookAt, normal);
-	camera.rotation.setFromRotationMatrix( camera.matrix, camera.rotation.order );
+	cameraDummy.matrix.lookAt(cameraDummy.position, lookAt, normal);
+	cameraDummy.rotation.setFromRotationMatrix( cameraDummy.matrix, cameraDummy.rotation.order );
+
+	/*camera.rotation.x = 2. * time;
+	camera.rotation.y = 2. * time;
+	camera.rotation.z = time;*/
 
 	mesh.material = depthMaterial;
 	points.material.uniforms.shadow.value = 1;
@@ -601,28 +860,42 @@ function animate() {
 	points.material.uniforms.shadow.value = 0;
 	renderer.render( scene, camera, glowFBO );
 
+	orthoQuad.material = combineShader;
+	combineShader.uniforms.inputTexture.value = baseFBO.texture;
+	combineShader.uniforms.glowTexture.value = glowFBO.texture;
+	renderer.render( orthoScene, orthoCamera, combinedFBO );
+
 	var r = 5;
-	shiftShader.uniforms.inputTexture.value = baseFBO.texture;
-	shiftShader.uniforms.delta.value.set( r, 0 );
-	orthoQuad.material = shiftShader;
-	renderer.render( orthoScene, orthoCamera, rgbShiftFBO );
-
-	blurShader.uniforms.inputTexture.value = rgbShiftFBO.texture;
+	blurShader.uniforms.inputTexture.value = combinedFBO.texture;
 	blurShader.uniforms.delta.value.set( r, 0 );
-	orthoQuad.material = blurShader;
-	renderer.render( orthoScene, orthoCamera, blur1FBO );
-
-	blurShader.uniforms.delta.value.set( 0, r );
-	blurShader.uniforms.inputTexture.value = blur1FBO.texture;
+	blurShader.uniforms.time.value = .0001 * performance.now();
 	orthoQuad.material = blurShader;
 	renderer.render( orthoScene, orthoCamera, blur2FBO );
 
+	/*blurShader.uniforms.delta.value.set( 0, r );
+	blurShader.uniforms.inputTexture.value = blur1FBO.texture;
+	orthoQuad.material = blurShader;
+	renderer.render( orthoScene, orthoCamera, blur2FBO );*/
+
+	gatherShader.uniforms.inputTexture.value = blur2FBO.texture;
+	gatherShader.uniforms.sharpTexture.value = combinedFBO.texture;
+	gatherShader.uniforms.depthTexture.value = depthFBO.texture;
+	orthoQuad.material = gatherShader;
+	renderer.render( orthoScene, orthoCamera, finalFBO );
+
+	/*var r = 40;
+	shiftShader.uniforms.inputTexture.value = finalFBO.texture;
+	shiftShader.uniforms.delta.value.set( r, 0 );
+	orthoQuad.material = shiftShader;
+	renderer.render( orthoScene, orthoCamera, rgbShiftFBO );*/
+
 	orthoQuad.material = finalShader;
-	finalShader.uniforms.inputTexture.value = baseFBO.texture;
-	finalShader.uniforms.glowTexture.value = glowFBO.texture;
-	finalShader.uniforms.blurTexture.value = blur2FBO.texture;
-	finalShader.uniforms.depthTexture.value = depthFBO.texture;
+	finalShader.uniforms.inputTexture.value = finalFBO.texture;
+	finalShader.uniforms.time.value = .0001 * performance.now();
 	renderer.render( orthoScene, orthoCamera );
+
+//	mesh.material = material;
+//	renderer.render( scene, camera );
 
 }
 
