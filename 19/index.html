@@ -6,23 +6,42 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
 
 		<div id="container"></div>
 		<div id="info" >
-			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
-			<h1>5. DOF Tunnel</h1>
-			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+			<!--<p><a href="../18" >Previous</a> | <a href="../20" >Next</a></p>-->
+			<h1>19. DOF Tunnel</h1>
+			<p>Experimenting with different combinations of shader passes to get a reasonably nice Depth-of-Field (DOF). It's a bit too soft, but it does work.</p>
+			<p>Choose color scheme: <span class="action active" id="redBtn" >Red</span> | <span class="action" id="blueBtn">Blue</span><br/>
+			Choose devicePixelRatio: <span class="action" id="halfResBtn">1 pixel</span> | <span class="action" id="originalResBtn">Original pixel ratio</span><br/>
+			<span class="action" id="toggleDOFBtn">Toggle DOF direction</span> | <span class="action" id="togglePreBlur">Toggle blur mode</span></p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>Path is a THREE.Curves.TorusKnot, and it's used to move the camera and generate a tunel with THREE.TubeGeometry.</p>
+				<p>The tunnel is rendered to three different framebuffers: diffuse color, only glow textures and depth buffer.</p>
+				<p>Then glow and diffuse are combined in a pass that uses bias on texture2D to create a soft glow out of the glow texture. The glow texture is smaller than the diffuse texture, but there's no blur involved. The glow strength is used to add a dirt lens texture on top.</p>
+				<p>Then the combined diffuse+glow texture has a poisson-disc based blur performed, modulated by the depth buffer, to create the DOF efffect.</p>
+				<p>A final pass performs FXXA, adds a bit of noise and vignetting.</p>
+				<p>Some discarded ideas are: using a blur framebuffer created with a separable blur (it's faster but the result is less compelling), adding an interlaced effect on top of the final buffer (it looks correct, but it makes DOF unnoticeable), RGB shift / chromatic aberration pass (it was just too much, didn't improve the result).</p>
+				<p><b>Credits</b></p>
+				<p>Path and tunnel created with the excellent <a href="https://threejs.org/examples/webgl_geometry_extrude_splines.html" >Spline Extrusion</a> by zz85.</p>
+				<p><a href="https://www.shadertoy.com/view/lsfGWn" >Blur: Poisson Disc</a> by hornet, <a href="https://www.shadertoy.com/view/ls3GWS" >Post process - FXAA</a> by reinder and <a href="https://www.shadertoy.com/view/XssGz8" >post: Barrel Blur Chroma</a> by hornet, all from <a href="https://www.shadertoy.com" >ShaderToy</a>.</p>
+				<p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
+			</div>
+			<!--<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>-->
 		</div>
 
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/DeviceOrientationControls.js"></script>
 		<script src="../js/Maf.js"></script>
-		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/CurveExtras.js"></script>
+		<script src="../js/Common.js"></script>
 		<script src="../js/isMobile.min.js"></script>
 
 <script id="particle-vs" type="x-shader/x-vertex">
@@ -58,7 +77,7 @@ void main() {
 	vUv = uvs[ id ];
 
 	gl_Position = projectionMatrix * p;
-	vDepth = clamp( gl_Position.z / 100., 0., 1. );
+	vDepth = clamp( gl_Position.z / 80., 0., 1. );
 
 }
 
@@ -71,7 +90,6 @@ varying vec2 vUv;
 varying float vSize;
 varying float vDepth;
 
-uniform float opacity;
 uniform float shadow;
 uniform vec3 fogColor;
 
@@ -80,12 +98,12 @@ void main() {
 	vec2 barycenter = vec2( .5, .6666 );
 	float d = smoothstep( .5, .55, 1. - 2. * length( vUv - barycenter ) );
 	float a = 1. - smoothstep( .9, 1., 5. * length( vUv - barycenter ) );
-	if( d <= 0. || a * opacity <= 0. ) discard;
+	if( d <= 0. || a <= 0. ) discard;
 
 	if( shadow == 1. ) {
 		gl_FragColor = vec4( vec3( vDepth), 1. );
 	} else {
-		gl_FragColor = vec4( mix( fogColor, vec3( 1. ), 1. - vDepth ), a );
+		gl_FragColor = vec4( mix( fogColor, vec3( 1. - vDepth ), 1. - vDepth ), a );
 	}
 
 }
@@ -105,7 +123,7 @@ varying float vDepth;
 void main() {
 
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
-	vDepth = clamp( gl_Position.z / 100., 0., 1. );
+	vDepth = clamp( gl_Position.z / 80., 0., 1. );
 
 }
 </script>
@@ -387,24 +405,93 @@ void main() {
 precision highp float;
 
 uniform sampler2D inputTexture;
-uniform sampler2D sharpTexture;
+uniform sampler2D blurredTexture;
 uniform sampler2D depthTexture;
 uniform vec2 resolution;
+uniform float time;
+uniform float devicePixelRatio;
+uniform float dirDOF;
+uniform float preBlurred;
 
 varying vec2 vUv;
 
+float nrand( vec2 n ) {
+	return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+vec2 rot2d( vec2 p, float a ) {
+	vec2 sc = vec2(sin(a),cos(a));
+	return vec2( dot( p, vec2(sc.y, -sc.x) ), dot( p, sc.xy ) );
+}
+
+const int NUM_TAPS = 27;
+const float rcp_maxdist = 1.0 / 4.22244;
+
+vec4 poissonSample( sampler2D map, vec2 uv, sampler2D bias, float radius ) {
+
+	float d = texture2D( bias, uv ).r;
+	if( dirDOF == 1. ) d = 1. - 4. / devicePixelRatio * d;
+    float max_siz = radius * d;
+
+	vec2 fTaps_Poisson[NUM_TAPS];
+    fTaps_Poisson[0]  = rcp_maxdist * vec2(  -0.8835609, 2.523391 );
+    fTaps_Poisson[1]  = rcp_maxdist * vec2(  -1.387375, 1.056318 );
+    fTaps_Poisson[2]  = rcp_maxdist * vec2(  -2.854452, 1.313645 );
+    fTaps_Poisson[3]  = rcp_maxdist * vec2(  0.6326182, 1.14569 );
+    fTaps_Poisson[4]  = rcp_maxdist * vec2(  1.331515, 3.637297 );
+    fTaps_Poisson[5]  = rcp_maxdist * vec2(  -2.175307, 3.885795 );
+    fTaps_Poisson[6]  = rcp_maxdist * vec2(  -0.5396664, 4.1938 );
+    fTaps_Poisson[7]  = rcp_maxdist * vec2(  -0.6708734, -0.36875 );
+    fTaps_Poisson[8]  = rcp_maxdist * vec2(  -2.083908, -0.6921188 );
+    fTaps_Poisson[9]  = rcp_maxdist * vec2(  -3.219028, 2.85465 );
+    fTaps_Poisson[10] = rcp_maxdist * vec2(  -1.863933, -2.742254 );
+    fTaps_Poisson[11] = rcp_maxdist * vec2(  -4.125739, -1.283028 );
+    fTaps_Poisson[12] = rcp_maxdist * vec2(  -3.376766, -2.81844 );
+    fTaps_Poisson[13] = rcp_maxdist * vec2(  -3.974553, 0.5459405 );
+    fTaps_Poisson[14] = rcp_maxdist * vec2(  3.102514, 1.717692 );
+    fTaps_Poisson[15] = rcp_maxdist * vec2(  2.951887, 3.186624 );
+    fTaps_Poisson[16] = rcp_maxdist * vec2(  1.33941, -0.166395 );
+    fTaps_Poisson[17] = rcp_maxdist * vec2(  2.814727, -0.3216669 );
+    fTaps_Poisson[18] = rcp_maxdist * vec2(  0.7786853, -2.235639 );
+    fTaps_Poisson[19] = rcp_maxdist * vec2(  -0.7396695, -1.702466 );
+    fTaps_Poisson[20] = rcp_maxdist * vec2(  0.4621856, -3.62525 );
+    fTaps_Poisson[21] = rcp_maxdist * vec2(  4.181541, 0.5883132 );
+    fTaps_Poisson[22] = rcp_maxdist * vec2(  4.22244, -1.11029 );
+    fTaps_Poisson[23] = rcp_maxdist * vec2(  2.116917, -1.789436 );
+    fTaps_Poisson[24] = rcp_maxdist * vec2(  1.915774, -3.425885 );
+    fTaps_Poisson[25] = rcp_maxdist * vec2(  3.142686, -2.656329 );
+    fTaps_Poisson[26] = rcp_maxdist * vec2(  -1.108632, -4.023479 );
+
+    vec4 sum = vec4(0);
+    vec2 seed = uv + fract( time );
+    float rnd = 6.28 * nrand( seed );
+
+    vec4 basis = vec4( rot2d(vec2(1,0),rnd), rot2d(vec2(0,1),rnd) );
+    for (int i=0; i < NUM_TAPS; i++)
+    {
+        vec2 ofs = fTaps_Poisson[i]; ofs = vec2(dot(ofs,basis.xz),dot(ofs,basis.yw) );
+        //vec2 ofs = rot2d( fTaps_Poisson[i], rnd );
+        vec2 texcoord = uv + max_siz * ofs / resolution.xy;
+        sum += texture2D(map, texcoord, -10.0);
+    }
+
+    return sum / vec4(NUM_TAPS);
+
+}
+
 void main() {
 
-	vec4 blur = texture2D( inputTexture, vUv );
-	vec4 sharp = texture2D( sharpTexture, vUv );
-	float d = texture2D( depthTexture, vUv ).r;
-	float depth = smoothstep( .0, .5, d + .1 );
-	//depth = 1. - smoothstep( .0, .3, d );
-   	depth = clamp( depth, 0., 1. );
-	vec4 color = mix( sharp, blur, depth );
+	vec4 color;
+	if( preBlurred == 1. ) {
+		float d = texture2D( depthTexture, vUv ).r;
+		if( dirDOF == 1. ) d = 1. - 4. / devicePixelRatio * d;
+		float depth = smoothstep( .0, .5, d + .1 );
+		color = mix( texture2D( inputTexture, vUv ), texture2D( blurredTexture, vUv ), depth );
+	} else {
+		color = poissonSample( inputTexture, vUv, depthTexture, 16. * devicePixelRatio );
+	}
 
 	gl_FragColor = color;
-	//gl_FragColor = vec4( depth, depth, depth, 1. );
 
 }
 </script>
@@ -436,7 +523,7 @@ float applyOverlayToChannel( float base, float blend ) {
 
 }
 
-#define FXAA_SPAN_MAX 256.0
+#define FXAA_SPAN_MAX 8.0
 #define FXAA_REDUCE_MUL   (1.0/FXAA_SPAN_MAX)
 #define FXAA_REDUCE_MIN   (1.0/128.0)
 #define FXAA_SUBPIX_SHIFT (1.0/4.0)
@@ -539,6 +626,89 @@ var helper;
 
 var container = document.getElementById( 'container' );
 
+var redBtn = document.getElementById( 'redBtn' );
+var blueBtn = document.getElementById( 'blueBtn' );
+
+redBtn.addEventListener( 'click', setRedScheme );
+blueBtn.addEventListener( 'click', setBlueScheme );
+
+function setRedScheme() {
+
+	redBtn.classList.add( 'active' );
+	blueBtn.classList.remove( 'active' );
+
+	material.map = new THREE.TextureLoader().load( '../assets/palette4.png' ),
+	glowMaterial.map = new THREE.TextureLoader().load( '../assets/palette4-glow.png' ),
+
+	material.map.repeat.set( 200, 5 );
+	material.map.wrapS = material.map.wrapT = THREE.RepeatWrapping;
+
+	glowMaterial.map.repeat.set( 200, 5 );
+	glowMaterial.map.wrapS = glowMaterial.map.wrapT = THREE.RepeatWrapping;
+
+
+	scene.fog = new THREE.FogExp2( 0xb70000, .0125 );
+
+}
+
+function setBlueScheme() {
+
+	redBtn.classList.remove( 'active' );
+	blueBtn.classList.add( 'active' );
+
+	material.map = new THREE.TextureLoader().load( '../assets/palette3.png' ),
+	glowMaterial.map = new THREE.TextureLoader().load( '../assets/palette3-glow.png' ),
+
+	material.map.repeat.set( 200, 5 );
+	material.map.wrapS = material.map.wrapT = THREE.RepeatWrapping;
+
+	glowMaterial.map.repeat.set( 200, 5 );
+	glowMaterial.map.wrapS = glowMaterial.map.wrapT = THREE.RepeatWrapping;
+
+	scene.fog = new THREE.FogExp2( 0x8080ff, .0125 );
+
+}
+
+var halfResBtn = document.getElementById( 'halfResBtn' );
+var originalResBtn = document.getElementById( 'originalResBtn' );
+
+halfResBtn.addEventListener( 'click', setHalfRes );
+originalResBtn.addEventListener( 'click', setOriginalRes );
+
+var dirDOF = 0;
+document.getElementById( 'toggleDOFBtn' ).addEventListener( 'click', function( e ) {
+
+	dirDOF = 1 - dirDOF;
+
+});
+
+var preBlurred = 0;
+document.getElementById( 'togglePreBlur' ).addEventListener( 'click', function( e ) {
+
+	preBlurred = 1 - preBlurred;
+
+});
+
+function setHalfRes() {
+
+	halfResBtn.classList.add( 'active' );
+	originalResBtn.classList.remove( 'active' );
+
+	renderer.setPixelRatio( 1 );
+	onWindowResized();
+
+}
+
+function setOriginalRes() {
+
+	halfResBtn.classList.remove( 'active' );
+	originalResBtn.classList.add( 'active' );
+
+	renderer.setPixelRatio( window.devicePixelRatio );
+	onWindowResized();
+
+}
+
 function initScene() {
 
 	var segments = 400;
@@ -552,7 +722,7 @@ function initScene() {
 	geometry = new THREE.TubeBufferGeometry( extrudePath, segments, 4, radiusSegments, closed2 );
 
 	material = new THREE.MeshBasicMaterial( {
-		map: new THREE.TextureLoader().load( '../assets/palette3.png' ),
+		map: new THREE.TextureLoader().load( '../assets/palette4.png' ),
 		color: 0xffffff,
 		side: THREE.BackSide,
 		wireframe: !true,
@@ -560,7 +730,7 @@ function initScene() {
 	} )
 
 	glowMaterial = new THREE.MeshBasicMaterial( {
-		map: new THREE.TextureLoader().load( '../assets/palette3-glow.png' ),
+		map: new THREE.TextureLoader().load( '../assets/palette4-glow.png' ),
 		color: 0xffffff,
 		side: THREE.BackSide,
 		wireframe: !true,
@@ -628,15 +798,13 @@ function initScene() {
 				new THREE.Vector3( 1, 1 ),
 				new THREE.Vector3( .5, 0 )
 			]},
-			opacity: { type: 'f', value: 1. },
 			fogColor: { type: 'c', value: scene.fog.color.clone() }
 		},
 		vertexShader: document.getElementById( 'particle-vs' ).textContent,
 		fragmentShader: document.getElementById( 'particle-fs' ).textContent,
 		depthTest: true,
 		depthWrite: false,
-		transparent: true,
-		blending: THREE.AdditiveBlending
+		transparent: true
 	} );
 
 	points = new THREE.Mesh(
@@ -672,7 +840,7 @@ function init() {
 	scene = new THREE.Scene();
 
 	scene.fog = new THREE.FogExp2( 0xb70000, .0125 );
-	scene.fog = new THREE.FogExp2( 0x8080ff, .0125 );
+	//scene.fog = new THREE.FogExp2( 0x8080ff, .0125 );
 
 	camera = new THREE.PerspectiveCamera( 80, window.innerWidth / window.innerHeight, .1, 100 );
 	camera.position.z = 1;
@@ -687,7 +855,11 @@ function init() {
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
-	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	if( isMobile.any ) {
+		controls = new THREE.DeviceOrientationControls( camera );
+	} else {
+		controls = new THREE.OrbitControls( camera, renderer.domElement );
+	}
 
 	baseFBO = createRenderTarget();
 	glowFBO = createRenderTarget();
@@ -705,7 +877,7 @@ function init() {
 		uniforms: {
 			inputTexture: { type: 't', value: baseFBO.texture },
 			glowTexture: { type: 't', value: glowFBO.texture },
-			flareTexture: { type: 't', value: new THREE.TextureLoader().load( '../assets/lens_flare_tex.jpg') },
+			flareTexture: { type: 't', value: new THREE.TextureLoader().load( '../assets/lens-flare.jpg') },
 			resolution: { type: 'v2', value: resolution }
 		},
 		vertexShader: document.getElementById('ortho-vs').textContent,
@@ -736,9 +908,12 @@ function init() {
 	gatherShader = new THREE.RawShaderMaterial( {
 		uniforms: {
 			inputTexture: { type: 't', value: baseFBO.texture },
-			sharpTexture: { type: 't', value: baseFBO.texture },
+			blurredTexture: { type: 't', value: baseFBO.texture },
 			depthTexture: { type: 't', value: baseFBO.texture },
 			resolution: { type: 'v2', value: resolution },
+			devicePixelRatio: { type: 'f', value: 0 },
+			dirDOF: { type: 'f', value: dirDOF },
+			preBlurred: { type: 'f', value: 0 }
 		},
 		vertexShader: document.getElementById('ortho-vs').textContent,
 		fragmentShader: document.getElementById('gather-fs').textContent,
@@ -763,11 +938,21 @@ function init() {
 	orthoScene.add( orthoQuad );
 
 	initScene();
-	onWindowResized();
+
+	if( isMobile.any ) setHalfRes(); else setOriginalRes();
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	window.addEventListener( 'resize', onWindowResized );
 
 	animate();
+
+}
+
+function changePixelRatio( dPR ) {
+
+	renderer.setPixelRatio( dPR );
+	onWindowResized();
 
 }
 
@@ -865,21 +1050,26 @@ function animate() {
 	combineShader.uniforms.glowTexture.value = glowFBO.texture;
 	renderer.render( orthoScene, orthoCamera, combinedFBO );
 
-	var r = 5;
-	blurShader.uniforms.inputTexture.value = combinedFBO.texture;
-	blurShader.uniforms.delta.value.set( r, 0 );
-	blurShader.uniforms.time.value = .0001 * performance.now();
-	orthoQuad.material = blurShader;
-	renderer.render( orthoScene, orthoCamera, blur2FBO );
+	if( preBlurred ) {
+		var r = 5;
+		blurShader.uniforms.inputTexture.value = combinedFBO.texture;
+		blurShader.uniforms.delta.value.set( r, 0 );
+		blurShader.uniforms.time.value = .0001 * performance.now();
+		orthoQuad.material = blurShader;
+		renderer.render( orthoScene, orthoCamera, blur2FBO );
+	}
 
 	/*blurShader.uniforms.delta.value.set( 0, r );
 	blurShader.uniforms.inputTexture.value = blur1FBO.texture;
 	orthoQuad.material = blurShader;
 	renderer.render( orthoScene, orthoCamera, blur2FBO );*/
 
-	gatherShader.uniforms.inputTexture.value = blur2FBO.texture;
-	gatherShader.uniforms.sharpTexture.value = combinedFBO.texture;
+	gatherShader.uniforms.inputTexture.value = combinedFBO.texture;
+	gatherShader.uniforms.blurredTexture.value = blur2FBO.texture;
 	gatherShader.uniforms.depthTexture.value = depthFBO.texture;
+	gatherShader.uniforms.devicePixelRatio.value = renderer.getPixelRatio();
+	gatherShader.uniforms.dirDOF.value = dirDOF;
+	gatherShader.uniforms.preBlurred.value = preBlurred;
 	orthoQuad.material = gatherShader;
 	renderer.render( orthoScene, orthoCamera, finalFBO );
 
