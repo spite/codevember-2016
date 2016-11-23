@@ -98,6 +98,8 @@ void main() {
 
 <script>
 
+// http://iquilezles.org/www/articles/voxellines/voxellines.htm
+
 'use strict';
 
 function Conway3DSimulation( renderer, width, height, depth ) {
@@ -201,10 +203,10 @@ var simulation;
 
 function initScene() {
 
-	var light = new THREE.HemisphereLight( 0xffffff, 0x261b1f, 1 );
+	var light = new THREE.HemisphereLight( 0xffffff, 0, 1 );
 	scene.add( light );
 
-	var light1 = new THREE.DirectionalLight( 0xffffff, .5, 0, .075, .5, .5 );
+	var light1 = new THREE.DirectionalLight( 0xffffff, 1, 0, .075, .5, .5 );
 	light1.position.set( 10, 10, 10 );
 	light1.target.position.set( 0, 0, 0 );
 	light1.castShadow = true;
@@ -216,7 +218,7 @@ function initScene() {
 	light1.shadow.camera.updateProjectionMatrix();
 	scene.add( light1 );
 
-	var light2 = new THREE.DirectionalLight( 0xffffff, .5, 0, .075, .5, .5 );
+	var light2 = new THREE.DirectionalLight( 0xffffff, 1, 0, .075, .5, .5 );
 	light2.position.set( -10, 10, -10 );
 	light2.target.position.set( 0, 0, 0 );
 	light2.castShadow = true;
@@ -410,6 +412,7 @@ uniform vec3 emissive;
 uniform float roughness;
 uniform float metalness;
 uniform float opacity;
+uniform float time;
 varying float vScale;
 varying vec3 vColor;
 varying vec2 vUv;
@@ -433,6 +436,7 @@ varying vec3 vViewPosition;
 #include <lights_pars>
 #include <lights_physical_pars_fragment>
 #include <shadowmap_pars_fragment>
+
 void main() {
 	vec4 diffuseColor = vec4( diffuse, opacity );
 	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
@@ -450,7 +454,7 @@ void main() {
 	vec2 uv = vUv;
 	vec2 st = 1.0 - uv;
 	vec4 corners = vec4( st.x, uv.x, uv.y, st.y ) * vCorners;
-	vec4 edges = smoothstep( .75, 1., ( vec4( st.x, uv.x, uv.y, st.y ) * vEdges ) );
+	vec4 edges = smoothstep( .5, 1., ( vec4( st.x, uv.x, uv.y, st.y ) * vEdges ) );
 	float edge = 1. - .25 * ( edges.x + edges.y + edges.z + edges.w );
 	edge = clamp( edge, 0., 1. );
 	gl_FragColor = vec4( grid * vColor * edge * outgoingLight, diffuseColor.a );
@@ -588,25 +592,25 @@ function init() {
 
 	scene = new THREE.Scene();
 
-	scene.fog = new THREE.FogExp2( 0x261b1f, 1.5 );
+	scene.fog = new THREE.FogExp2( 0, 1.1 );
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .0001, 100 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( .7, .7, .7 );
+	camera.position.set( 0, .5, 1.25 );
 	//camera.position.set( 0, 0, 1 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x261b1f, 1 );
+	renderer.setClearColor( 0, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
-	//controls.noZoom = true;
+	controls.noZoom = true;
 
 	helper = new FBOHelper( renderer );
 
@@ -647,7 +651,7 @@ function animate() {
 	var delta = t - time;
 
 	controls.update();
-	//mesh.rotation.y = .0005 * t;
+	mesh.rotation.y = .0005 * t;
 	if( run ) {
 		update( delta );
 	}
