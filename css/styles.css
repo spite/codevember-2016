@@ -94,3 +94,6 @@ width: 100%;
 height: 100%;
 top: 0;
 background: none;}
+.fullscreen-button{
+	position: absolute; right: 20px; bottom: 20px; border: 1px solid white; z-index: 1000; width: 28px; height: 28px; cursor: pointer; text-align: center; line-height: 24px
+}
