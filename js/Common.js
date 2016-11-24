@@ -26,7 +26,7 @@ function addFullscreenShortcut( element, callback ) {
 	} )
 	var btn = document.createElement( 'div' );
 	btn.textContent = '↗';
-	btn.style = 'position: absolute; right: 20px; bottom: 20px; border: 1px solid white; z-index: 1000; width: 28px; height: 28px; cursor: pointer; text-align: center; line-height: 24px';
+	btn.className = 'fullscreen-button'
 	document.body.appendChild( btn );
 	btn.addEventListener( 'click', goFS );
 }
