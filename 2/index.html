@@ -1,185 +1,303 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<title>Triangle Tunnel</title>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<head>
+	<title>Dot Sphere</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
-		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+	<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+	<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
 
-	</head>
-	<body>
+</head>
+<body>
 
-		<div id="container"></div>
-		<div id="info" >
-			<p><a href="../1" >Previous</a> | <a href="../3" >Next</a></p>
-			<h1>2. Triangle Tunnel</h1>
-			<p>Triangle tunnel</p>
-			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
-		</div>
+	<div id="container"></div>
+	<div id="info" >
+		<p><a href="../1" >Previous</a> | <a href="../3" >Next</a></p>
+		<h1>2. Dot Sphere</h1>
+		<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+	</div>
 
-		<script src="../js/three.js"></script>
-		<script src="../js/OrbitControls.js"></script>
-		<script src="../js/Maf.js"></script>
-		<script src="../js/THREE.ShaderTexture.js"></script>
+<script src="../js/three.js"></script>
+<script src="../js/OrbitControls.js"></script>
+<script src="../js/Maf.js"></script>
+<script src="../js/isMobile.min.js"></script>
 
-<script type="x-shader/x-shader" id="tunnel-vs" >
-precision highp float;
+<script type="x-shader/x-vertex" id="point-vs">
+	precision highp float;
 
-attribute vec3 position;
-attribute vec2 uv;
+	attribute vec3 position;
+	attribute vec3 color;
+	attribute float size;
 
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
+	uniform mat4 modelViewMatrix;
+	uniform mat4 projectionMatrix;
 
-varying vec2 vUv;
+	uniform float scale;
 
-void main() {
+	varying vec3 vColor;
+	varying float vDepth;
 
-	vUv = uv;
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+	void main() {
 
-}
+		vColor = color;
+
+		vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+
+		gl_PointSize = size * scale * 900. / -mvPosition.z;
+
+		gl_Position = projectionMatrix * mvPosition;
+		vDepth = clamp( gl_Position.z / 500., 0., 1. );
+
+	}
+
 </script>
 
-<script id="tunnel-fs" type="x-shader/x-fragment">
-precision highp float;
+<script type="x-shader/x-fragment" id="point-fs">
+	precision highp float;
 
-uniform vec3 colors[ 5 ];
-uniform vec2 dimensions;
-uniform float seed;
+	varying vec3 vColor;
+	varying float vDepth;
 
-varying vec2 vUv;
+	void main() {
 
-float hash( float n ) { return fract(sin(n)*753.5453123); }
-float noise( in vec3 x )
-{
-	vec3 p = floor(x);
-	vec3 f = fract(x);
-	f = f*f*(3.0-2.0*f);
+		gl_FragColor = vec4( vColor, 1.0 );
 
-	float n = p.x + p.y*157.0 + 113.0*p.z;
-	return mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
-	               mix( hash(n+157.0), hash(n+158.0),f.x),f.y),
-	mix(mix( hash(n+113.0), hash(n+114.0),f.x),
-	    mix( hash(n+270.0), hash(n+271.0),f.x),f.y),f.z);
-}
+		float d = length( gl_PointCoord - .5 );
+		if ( d > .5 ) discard;
 
-void main()
-{
-	vec2 d1 = vec2( 1. );
-	vec2 d2 = vec2( 4. );
-	vec2 uv1 = floor( vUv * d1 ) / d1;
-	vec2 uv2 = floor( vUv * d2 ) / d2;
-	float n1 = noise(vec3(d1 * uv1,seed));
-	float n2 = noise(vec3(d2 * uv2,seed));
-	float levels = 10.;
-	n1 = floor( n1 * levels ) / levels;
-	n2 = floor( n2 * levels ) / levels;
-	vec3 c = vec3( n1 );
+		float depth = vDepth;
+		vec3 fogColor = vec3( 10., 5., 31. ) / 255.;
+		gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, depth );
 
-	gl_FragColor = vec4( c, 1. );
-
-}
+	}
 
 </script>
 
 <script>
 
-'use strict';
+	'use strict';
 
-var container, renderer, camera, controls, scene;
-var tunnel;
+	var container, renderer, camera, controls, scene;
+	var mesh, dummy = new THREE.Object3D();
 
-var container = document.getElementById( 'container' );
+	var helper;
 
-function initScene() {
+	var container = document.getElementById( 'container' );
 
-	var side = 10;
-	var h = .8 * Math.sqrt( side * side + ( .5 * side ) * ( .5 * side ) );
+	function loadMap( map ) {
 
-	var shape = new THREE.Shape();
-	shape.moveTo( -side / 2, -h / 2 );
-	shape.lineTo( side / 2, - h / 2 );
-	shape.lineTo( 0, h / 2 );
+		return new Promise( function( resolve, reject ) {
+			var img = new Image();
+			img.addEventListener( 'load', function() {
+				resolve( this );
+			} );
+			img.src = map;
+		});
 
-	var extrudeSettings = {
-		steps: 100,
-		amount: 1000,
-		bevelEnabled: false
-	};
+	}
 
-	var geometry = new THREE.ExtrudeGeometry( shape, extrudeSettings );
-	var material = new THREE.RawShaderMaterial( {
-		uniforms: {
-			dimensions: { type: 'v2', value: new THREE.Vector2( 1000, 10 ) },
-			seed: { type: 'f', value: 1 }
-		},
-		vertexShader: document.getElementById( 'tunnel-vs' ).textContent,
-		fragmentShader: document.getElementById( 'tunnel-fs' ).textContent,
-		side: THREE.BackSide
-	} );
-	var mesh = new THREE.Mesh( geometry, material ) ;
-	scene.add( mesh );
+	function initScene() {
 
-}
+		var diffuseImg;
+		var compositeImg;
 
-function init() {
+		Promise.all( [
+			loadMap( '../assets/map-composite.jpg' ).then( res => compositeImg = res ),
+			loadMap( '../assets/map-color.jpg' ).then( res => diffuseImg = res ),
+		] ).then( _ => {
+			processImage( compositeImg, diffuseImg );
+			animate()
+		});
 
-	container = document.getElementById( 'container' );
+	}
 
-	scene = new THREE.Scene();
+	function azimuth( vector ) {
 
-	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
-	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 500 );
-	camera.lookAt( camera.target );
-	scene.add( camera );
+		return Math.atan2( vector.z, - vector.x );
 
-	renderer = new THREE.WebGLRenderer( { antialias: false, preserveDrawingBuffer: true } );
-	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0, 1 );
-	container.appendChild( renderer.domElement );
+	}
 
-	renderer.shadowMap.enabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap;
 
-	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	function inclination( vector ) {
 
-	initScene();
-	onWindowResized();
+		return Math.atan2( - vector.y, Math.sqrt( ( vector.x * vector.x ) + ( vector.z * vector.z ) ) );
 
-	window.addEventListener( 'resize', onWindowResized );
+	}
 
-	animate();
+	function imageToLookup( img ) {
 
-}
+		var texture = document.createElement( 'canvas' );
+		var ctx = texture.getContext( '2d' );
 
-function onWindowResized( event ) {
+		texture.width = img.width;
+		texture.height = img.height;
+		ctx.drawImage( img, 0, 0 );
+		var imageData = ctx.getImageData( 0, 0, texture.width, texture.height );
+		var data = imageData.data;
 
-	var w = container.clientWidth;
-	var h = container.clientHeight;
+		return function( uv ) {
+			var ptr = Math.floor( uv.y * texture.height ) * texture.width * 4 + Math.floor( uv.x * texture.width ) * 4;
+			return [ data[ ptr ], data[ ptr + 1 ], data[ ptr + 2 ], data[ ptr + 3 ] ];
+		}
 
-	renderer.setSize( w, h );
-	camera.aspect = w / h;
-	camera.updateProjectionMatrix();
+	}
 
-}
+	function processImage( mask, color ) {
 
-function animate() {
+		var maskLookup = imageToLookup( mask );
+		var colorLookup = imageToLookup( color );
 
-	requestAnimationFrame( animate );
+		var positions = [];
+		var colors = [];
+		var sizes = [];
 
-	controls.update();
+		var geometry = new THREE.BufferGeometry();
 
-	renderer.render( scene, camera );
+		var scale = isMobile.any ? 1 : 4;
 
-}
+		var width = 400, height = 200, size = 1 / scale, aStep = .01 / scale;
+		var uv = new THREE.Vector2();
+		var vertex = new THREE.Vector3();
 
-window.addEventListener( 'load', init );
+		for( var a = - Math.PI / 2; a < Math.PI / 2; a += aStep ){
+
+			var y = .5 * height * Math.sin( a );
+			var r = .5 * height * Math.cos( a );
+			var l = 2 * Math.PI * r;
+			var size = size;
+			var steps = Math.floor( l / size );
+			var offset = ( ( width - ( Math.ceil( steps * size ) ) ) * 2 * Math.PI ) / width;
+
+			for( var x = 0; x < steps; x++ ) {
+
+				var radius = r;
+				var ta = x * 2 * Math.PI / steps;
+				ta += offset;
+
+				vertex.set( - radius * Math.cos( ta ), -y, radius * Math.sin( ta ) );
+
+				uv.set( azimuth( vertex ) / 2 / Math.PI + 0.5, inclination( vertex ) / Math.PI + 0.5 );
+
+				var v = maskLookup( uv );
+
+				if( v[ 0 ] > 0 ) {
+
+					var v2 = vertex.clone().multiplyScalar( 1 + .025 * v[ 1 ] / 255 );
+					positions.push( v2.x );
+					positions.push( v2.y );
+					positions.push( v2.z );
+
+					var c = colorLookup( uv );
+					colors.push( c[ 0 ] / 255 );
+					colors.push( c[ 1 ] / 255 );
+					colors.push( c[ 2 ] / 255 );
+
+					sizes.push( 1.1 * v[ 0 ] / 255 );
+
+				}
+
+				if( v[ 2 ] > 64 ) {
+
+					var v2 = vertex.clone().multiplyScalar( 1 + .1 );
+					positions.push( v2.x );
+					positions.push( v2.y );
+					positions.push( v2.z );
+
+					colors.push( 1 );
+					colors.push( 1 );
+					colors.push( 1 );
+
+					sizes.push( 2. * ( v[ 2 ] - 64 ) / 192 );
+
+				}
+
+			}
+
+		}
+
+		var geometry = new THREE.BufferGeometry();
+		var particles = positions.length / 3;
+
+		geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( positions ), 3 ) );
+		geometry.addAttribute( 'color', new THREE.BufferAttribute( new Float32Array( colors ), 3 ) );
+		geometry.addAttribute( 'size', new THREE.BufferAttribute( new Float32Array( sizes ), 1 ) );
+		geometry.computeBoundingSphere();
+
+		var material = new THREE.RawShaderMaterial( {
+
+			uniforms: {
+				scale: { value: 1 / scale }
+			},
+			vertexShader: document.getElementById( 'point-vs' ).textContent,
+			fragmentShader: document.getElementById( 'point-fs' ).textContent,
+			transparent: true,
+			alphaTest: 0.5,
+
+		} );
+
+		mesh = new THREE.Points( geometry, material );
+		dummy.add( mesh );
+		scene.add( dummy );
+
+		dummy.rotation.x = 23 * Math.PI / 180;
+
+	}
+
+	function init() {
+
+		container = document.getElementById( 'container' );
+
+		scene = new THREE.Scene();
+
+		camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
+		camera.position.set( 0, 0, 125 );
+		//camera.position.set( 61.01643532501035, -16.024913002353067, 85.53842635074523 );
+		//camera.rotation.set( 0, 1.9, 1.6 );
+		scene.add( camera );
+
+		renderer = new THREE.WebGLRenderer( { antialias: true } );
+		renderer.setPixelRatio( window.devicePixelRatio );
+		renderer.setClearColor( 0x0a051f, 1 );
+		container.appendChild( renderer.domElement );
+
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.PCFShadowMap;
+
+		controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+		initScene();
+		onWindowResized();
+
+		window.addEventListener( 'resize', onWindowResized );
+
+	}
+
+	function onWindowResized( event ) {
+
+		var w = container.clientWidth;
+		var h = container.clientHeight;
+
+		renderer.setSize( w, h );
+		camera.aspect = w / h;
+		camera.updateProjectionMatrix();
+
+	}
+
+	function animate() {
+
+		requestAnimationFrame( animate );
+
+		//controls.update();
+		mesh.rotation.y = .0001 * performance.now();
+
+		renderer.render( scene, camera );
+
+	}
+
+	window.addEventListener( 'load', init );
 
 </script>
 
-	</body>
+</body>
 </html>
