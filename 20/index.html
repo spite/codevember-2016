@@ -101,7 +101,7 @@ void main() {
 
 	p.xyz = vec3( vec2( x, y ) * dimensions, 0. );
 
-	gl_PointSize = .1 * c.a;
+	gl_PointSize = .1 * dimensions.x / 4096. * c.a;
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1. );
 
 }
@@ -181,6 +181,7 @@ precision highp float;
 
 uniform sampler2D positions;
 uniform sampler2D original;
+uniform float time;
 
 varying vec2 vUv;
 
@@ -268,7 +269,7 @@ float rand(vec2 co){
 void main() {
 
 	vec4 c = texture2D( positions, vUv );
-	c.xyz += .00025 * curlNoise( 2. * c.xyz );
+	c.xyz += .00025 * curlNoise( 2. * c.xyz + vec3( time, 0., 0. ) );
 	c.xyz = normalize( c.xyz );
 	c.a += .5;
 	if( c.a > 100. ) {
@@ -358,7 +359,8 @@ function initScene() {
 	simulationShader = new THREE.RawShaderMaterial( {
 		uniforms:{
 			original: { type: 't', value: texture },
-			positions: { type: 't', value: texture }
+			positions: { type: 't', value: texture },
+			time: { type: 'f', value: 0 }
 		},
 		vertexShader: document.getElementById( 'simulation-vs' ).textContent,
 		fragmentShader: document.getElementById( 'simulation-fs' ).textContent,
@@ -463,30 +465,6 @@ function initScene() {
 	}
 
 	var sphereGeometry = new THREE.IcosahedronBufferGeometry( 100, 5 );
-	var vertex = new THREE.Vector3();
-	var uv = new THREE.Vector2();
-
-	var positionArray = sphereGeometry.attributes.position;
-	var uvArray = sphereGeometry.attributes.uv;
-
-	for( var j = 0, ptrPos = 0, ptrUV = 0; j < positionArray.count; j++, ptrPos += 3, ptrUV += 2 ) {
-
-		vertex.set( positionArray.array[ ptrPos ], positionArray.array[ ptrPos + 1 ], positionArray.array[ ptrPos + 2 ] );
-
-		uv.set( azimuth( vertex ) / 2 / Math.PI + 0.5, inclination( vertex ) / Math.PI + 0.5 );
-
-		if( uv.x < 0 ) uv.x += 1;
-		if( uv.y < 0 ) uv.y += 1;
-
-		uv.x %= 1;
-		uv.y %= 1;
-
-		uvArray.array[ ptrUV ] = uv.x;
-		uvArray.array[ ptrUV + 1 ] = uv.y;
-
-	}
-	sphereGeometry.attributes.position.needsUpdate = true;
-	sphereGeometry.attributes.uv.needsUpdate = true;
 
 	var light = new THREE.HemisphereLight( 0xff9d5c, 0x5cadff, 1 );
 	scene.add( light );
@@ -508,7 +486,7 @@ function initScene() {
 
 	sphere = new THREE.Mesh(
 		sphereGeometry,
-		new THREE.MeshStandardMaterial({
+		new THREE.MeshBasicMaterial({
 			map: tex,
 			roughnessMap: tex,
 			metalnessMap: tex,
@@ -573,6 +551,7 @@ function animate() {
 
 	controls.update();
 
+	simulationShader.uniforms.time.value = .0001 * performance.now();
 	simulationShader.uniforms.positions.value = targets[ targetPos ];
 	targetPos = 1 - targetPos;
 	renderer.render( rtScene, rtCamera, targets[ targetPos ] );
