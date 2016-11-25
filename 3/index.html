@@ -540,8 +540,10 @@ ThomasAttractor.prototype.deserialize = function( hash ) {
 	this.z = parseFloat( fields[ 4 ] );
 
 }
-/*
+
 function Lorenz84Attractor() {
+
+	this.id = 'lorenz-84';
 
 	this.a = 1.111;
 	this.b = 1.479;
@@ -584,7 +586,27 @@ Lorenz84Attractor.prototype.randomize = function() {
 	this.z = Maf.randomInRange( -10, 10 );
 
 }
-*/
+
+Lorenz84Attractor.prototype.serialize = function() {
+
+	return this.id + ',' + this.a + ',' + this.b + ',' + this.f + ',' + this.g + ',' + this.x + ',' + this.y + ',' + this.z;
+
+}
+
+Lorenz84Attractor.prototype.deserialize = function( hash ) {
+
+	var fields = hash.split( ',' );
+
+	this.a = parseFloat( fields[ 1 ] );
+	this.b = parseFloat( fields[ 2 ] );
+	this.f = parseFloat( fields[ 3 ] );
+	this.g = parseFloat( fields[ 4 ] );
+
+	this.x = parseFloat( fields[ 5 ] );
+	this.y = parseFloat( fields[ 6 ] );
+	this.z = parseFloat( fields[ 7 ] );
+
+}
 
 // Lorenz a: 6.970773956984983, b: 45.21069279106107. c: 0.40074195636847343
 
@@ -593,7 +615,7 @@ var attractors = {
 	'rössler': RosslerAttractor,
 	'rabinovich-fabrikant': RabinovichFabrikantAttractor,
 	'thomas': ThomasAttractor,
-	//'lorenz-84': Lorenz84Attractor
+	'lorenz-84': Lorenz84Attractor
 }
 
 // http://www.chaoscope.org/doc/attractors.htm
