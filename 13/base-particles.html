@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Sphere Impostor</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../12" >Previous</a> | <a href="../14" >Next</a></p>
+			<h1>13. Sphere Impostor</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+
+<script id="particle-vs" type="x-shader/x-vertex">
+precision highp float;
+
+attribute vec3 position;
+attribute float vertexId;
+attribute float size;
+
+uniform mat4 modelMatrix;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform vec3 vertices[ 3 ];
+uniform vec2 uvs[ 3 ];
+
+uniform vec2 dimensions;
+uniform vec3 color;
+
+varying vec2 vUv;
+varying float vSize;
+varying float vDepth;
+
+const float PI = 3.14159265359;
+
+void main() {
+
+	int id = int( vertexId );
+	vec3 v = vertices[ id ];
+	vec4 p = modelViewMatrix * vec4( position, 1. );
+	p.xyz += v * size;
+
+	vSize = size;
+	vUv = uvs[ id ];
+
+	gl_Position = projectionMatrix * p;
+	vDepth = clamp( gl_Position.z / 80., 0., 1. );
+
+}
+
+</script>
+
+<script id="particle-fs" type="x-shader/x-vertex">
+precision highp float;
+
+varying vec2 vUv;
+varying float vSize;
+varying float vDepth;
+
+uniform float shadow;
+uniform vec3 fogColor;
+
+void main() {
+
+	vec2 barycenter = vec2( .5, .6666 );
+	float d = smoothstep( .5, .55, 1. - 2. * length( vUv - barycenter ) );
+	float a = 1. - smoothstep( .9, 1., 5. * length( vUv - barycenter ) );
+	if( d <= 0. || a <= 0. ) discard;
+
+	if( shadow == 1. ) {
+		gl_FragColor = vec4( vec3( vDepth), 1. );
+	} else {
+		gl_FragColor = vec4( mix( fogColor, vec3( 1. - vDepth ), 1. - vDepth ), a );
+	}
+
+}
+
+</script>
+
+<script>
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function initScene() {
+
+	var particles = 20000;
+	var pointsGeometry = new THREE.BufferGeometry();
+	var positions = new Float32Array( particles * 3 * 3 );
+	var indices = new Float32Array( particles * 3 * 1 );
+	var sizes = new Float32Array( particles * 3 * 1 );
+	var ptr = 0;
+	var ptr2 = 0;
+	var r = 10;
+	var p = new THREE.Vector3();
+	for( var j = 0; j < particles * 3; j++ ){
+
+		p.x = Maf.randomInRange( -r, r );
+		p.y = Maf.randomInRange( -r, r );
+		p.z = Maf.randomInRange( -r, r );
+
+		var s = Maf.randomInRange( .05, .25 );
+
+		for( var i = 0; i < 3; i++ ) {
+			positions[ ptr ] = p.x;
+			positions[ ptr + 1 ] = p.y;
+			positions[ ptr + 2 ] = p.z;
+			sizes[ ptr ] = s;
+			sizes[ ptr + 1 ] = s;
+			sizes[ ptr + 2 ] = s;
+			ptr += 3;
+		}
+
+	}
+
+	for( var j = 0; j < particles * 3; j++ ){
+		indices[ j ] = j % 3;
+	}
+
+	pointsGeometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	pointsGeometry.addAttribute( 'vertexId', new THREE.BufferAttribute( indices, 1 ) );
+	pointsGeometry.addAttribute( 'size', new THREE.BufferAttribute( sizes, 1 ) );
+
+	var particleMaterial = new THREE.RawShaderMaterial( {
+		uniforms:{
+			shadow: { type: 'f', value: 0 },
+			vertices: { type: 'v3v', value: [
+				new THREE.Vector3( -1, -1, 0 ),
+				new THREE.Vector3(  1, -1, 0 ),
+				new THREE.Vector3(  0,  1, 0 )
+			]},
+			uvs: { type: 'v2v', value: [
+				new THREE.Vector3( 0, 1 ),
+				new THREE.Vector3( 1, 1 ),
+				new THREE.Vector3( .5, 0 )
+			]},
+			fogColor: { type: 'c', value: scene.fog.color.clone() }
+		},
+		vertexShader: document.getElementById( 'particle-vs' ).textContent,
+		fragmentShader: document.getElementById( 'particle-fs' ).textContent,
+		depthTest: true,
+		depthWrite: true,
+		transparent: true
+	} );
+
+	mesh = new THREE.Mesh(
+		pointsGeometry,
+		particleMaterial
+	);
+	scene.add( mesh );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	scene.fog = new THREE.FogExp2( 0x261b1f, .0125 );
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 200 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: !true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
