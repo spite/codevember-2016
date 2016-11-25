@@ -427,11 +427,9 @@ vec2 rot2d( vec2 p, float a ) {
 const int NUM_TAPS = 27;
 const float rcp_maxdist = 1.0 / 4.22244;
 
-vec4 poissonSample( sampler2D map, vec2 uv, sampler2D bias, float radius ) {
+vec4 poissonSample( sampler2D map, vec2 uv, float radius ) {
 
-	float d = texture2D( bias, uv ).r;
-	if( dirDOF == 1. ) d = 1. - 4. / devicePixelRatio * d;
-    float max_siz = radius * d;
+	float max_siz = radius;
 
 	vec2 fTaps_Poisson[NUM_TAPS];
     fTaps_Poisson[0]  = rcp_maxdist * vec2(  -0.8835609, 2.523391 );
@@ -481,14 +479,17 @@ vec4 poissonSample( sampler2D map, vec2 uv, sampler2D bias, float radius ) {
 
 void main() {
 
+	float ratio = 1. / devicePixelRatio;
+	float d = texture2D( depthTexture, vUv ).r;
+	if( dirDOF == 1. ) d = clamp( 1. - 4. * ratio * d, 0., 1. );
+	else d = clamp( 8. * ratio * d, 0., 1. );
+	float depth = smoothstep( .0, 1., d );
+
 	vec4 color;
 	if( preBlurred == 1. ) {
-		float d = texture2D( depthTexture, vUv ).r;
-		if( dirDOF == 1. ) d = 1. - 4. / devicePixelRatio * d;
-		float depth = smoothstep( .0, .5, d + .1 );
 		color = mix( texture2D( inputTexture, vUv ), texture2D( blurredTexture, vUv ), depth );
 	} else {
-		color = poissonSample( inputTexture, vUv, depthTexture, 16. * devicePixelRatio );
+		color = poissonSample( inputTexture, vUv, depth * 16. );
 	}
 
 	gl_FragColor = color;
@@ -682,7 +683,7 @@ document.getElementById( 'toggleDOFBtn' ).addEventListener( 'click', function( e
 
 });
 
-var preBlurred = 0;
+var preBlurred = 1;
 document.getElementById( 'togglePreBlur' ).addEventListener( 'click', function( e ) {
 
 	preBlurred = 1 - preBlurred;
@@ -803,7 +804,7 @@ function initScene() {
 		vertexShader: document.getElementById( 'particle-vs' ).textContent,
 		fragmentShader: document.getElementById( 'particle-fs' ).textContent,
 		depthTest: true,
-		depthWrite: false,
+		depthWrite: true,
 		transparent: true
 	} );
 
@@ -859,6 +860,7 @@ function init() {
 		controls = new THREE.DeviceOrientationControls( camera );
 	} else {
 		controls = new THREE.OrbitControls( camera, renderer.domElement );
+		controls.noZoom = true;
 	}
 
 	baseFBO = createRenderTarget();
