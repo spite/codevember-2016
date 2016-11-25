@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Triangle Tunnel</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../1" >Previous</a> | <a href="../3" >Next</a></p>
+			<h1>2. Triangle Tunnel</h1>
+			<p>Triangle tunnel</p>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.ShaderTexture.js"></script>
+
+<script type="x-shader/x-shader" id="tunnel-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+</script>
+
+<script id="tunnel-fs" type="x-shader/x-fragment">
+precision highp float;
+
+uniform vec3 colors[ 5 ];
+uniform vec2 dimensions;
+uniform float seed;
+
+varying vec2 vUv;
+
+float hash( float n ) { return fract(sin(n)*753.5453123); }
+float noise( in vec3 x )
+{
+	vec3 p = floor(x);
+	vec3 f = fract(x);
+	f = f*f*(3.0-2.0*f);
+
+	float n = p.x + p.y*157.0 + 113.0*p.z;
+	return mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x),
+	               mix( hash(n+157.0), hash(n+158.0),f.x),f.y),
+	mix(mix( hash(n+113.0), hash(n+114.0),f.x),
+	    mix( hash(n+270.0), hash(n+271.0),f.x),f.y),f.z);
+}
+
+void main()
+{
+	vec2 d1 = vec2( 1. );
+	vec2 d2 = vec2( 4. );
+	vec2 uv1 = floor( vUv * d1 ) / d1;
+	vec2 uv2 = floor( vUv * d2 ) / d2;
+	float n1 = noise(vec3(d1 * uv1,seed));
+	float n2 = noise(vec3(d2 * uv2,seed));
+	float levels = 10.;
+	n1 = floor( n1 * levels ) / levels;
+	n2 = floor( n2 * levels ) / levels;
+	vec3 c = vec3( n1 );
+
+	gl_FragColor = vec4( c, 1. );
+
+}
+
+</script>
+
+<script>
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var tunnel;
+
+var container = document.getElementById( 'container' );
+
+function initScene() {
+
+	var side = 10;
+	var h = .8 * Math.sqrt( side * side + ( .5 * side ) * ( .5 * side ) );
+
+	var shape = new THREE.Shape();
+	shape.moveTo( -side / 2, -h / 2 );
+	shape.lineTo( side / 2, - h / 2 );
+	shape.lineTo( 0, h / 2 );
+
+	var extrudeSettings = {
+		steps: 100,
+		amount: 1000,
+		bevelEnabled: false
+	};
+
+	var geometry = new THREE.ExtrudeGeometry( shape, extrudeSettings );
+	var material = new THREE.RawShaderMaterial( {
+		uniforms: {
+			dimensions: { type: 'v2', value: new THREE.Vector2( 1000, 10 ) },
+			seed: { type: 'f', value: 1 }
+		},
+		vertexShader: document.getElementById( 'tunnel-vs' ).textContent,
+		fragmentShader: document.getElementById( 'tunnel-fs' ).textContent,
+		side: THREE.BackSide
+	} );
+	var mesh = new THREE.Mesh( geometry, material ) ;
+	scene.add( mesh );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 500 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: false, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
