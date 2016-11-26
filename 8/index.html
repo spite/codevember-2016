@@ -23,11 +23,11 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/MarchingCubes.js"></script>
+		<script src="../js/MeshCustomMaterial.js"></script>
 
 <script>
 
-// http://archillect.com/93970
-// https://www.shadertoy.com/view/ldl3W8#
+// http://archillect.com/30840
 
 'use strict';
 
@@ -43,9 +43,246 @@ var numblobs = 10;
 
 function initScene( id, randomize ) {
 
-	var resolution = 28;
+	var light = new THREE.HemisphereLight( 0xffffff, 0x000000, 1 );
+	scene.add( light );
 
-	var material = new THREE.MeshBasicMaterial( { wireframe: true } );
+	var light1 = new THREE.SpotLight( 0x87cffd, 1 );
+	light1.position.set( 0, 10, 15 );
+	light1.target.position.set( 0, 0, 0 );
+	light1.castShadow = true;
+	scene.add( light1 );
+
+	var light2 = new THREE.SpotLight( 0xfded87, 1 );
+	light2.position.set( 10, 10, -15 );
+	light2.target.position.set( 0, 0, 0 );
+	light2.castShadow = true;
+	scene.add( light2 );
+
+	renderer.render( scene, camera );
+	helper.attach( light1.shadow.map, 'light1' );
+	helper.attach( light2.shadow.map, 'light2' );
+
+	var resolution = 64;
+
+	var vs = `#define PHYSICAL
+
+varying vec3 vWorldPosition;
+varying vec3 vPosition;
+
+varying vec3 vViewPosition;
+#ifndef FLAT_SHADED
+	varying vec3 vNormal;
+#endif
+#include <common>
+#include <uv_pars_vertex>
+#include <uv2_pars_vertex>
+#include <displacementmap_pars_vertex>
+#include <color_pars_vertex>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
+#include <shadowmap_pars_vertex>
+#include <specularmap_pars_fragment>
+#include <logdepthbuf_pars_vertex>
+#include <clipping_planes_pars_vertex>
+void main() {
+	#include <uv_vertex>
+	#include <uv2_vertex>
+	#include <color_vertex>
+	#include <beginnormal_vertex>
+	#include <morphnormal_vertex>
+	#include <skinbase_vertex>
+	#include <skinnormal_vertex>
+	#include <defaultnormal_vertex>
+#ifndef FLAT_SHADED
+	vNormal = normalize( transformedNormal );
+#endif
+	#include <begin_vertex>
+	#include <displacementmap_vertex>
+	#include <morphtarget_vertex>
+	#include <skinning_vertex>
+	#include <project_vertex>
+	#include <logdepthbuf_vertex>
+	#include <clipping_planes_vertex>
+	vPosition = position;
+	vWorldPosition = ( modelMatrix * vec4( position.xyz, 1. ) ).xyz;
+	vViewPosition = - mvPosition.xyz;
+	#include <worldpos_vertex>
+	#include <shadowmap_vertex>
+}`;
+
+	var fs = `#extension GL_OES_standard_derivatives : enable
+#define PHYSICAL
+
+uniform sampler2D noiseMap;
+varying vec3 vWorldPosition;
+varying vec3 vPosition;
+
+uniform vec3 diffuse;
+uniform vec3 emissive;
+uniform float roughness;
+uniform float metalness;
+uniform float opacity;
+#ifndef STANDARD
+	uniform float clearCoat;
+	uniform float clearCoatRoughness;
+#endif
+uniform float envMapIntensity;
+varying vec3 vViewPosition;
+#ifndef FLAT_SHADED
+	varying vec3 vNormal;
+#endif
+#include <common>
+#include <packing>
+#include <color_pars_fragment>
+#include <uv_pars_fragment>
+#include <uv2_pars_fragment>
+#include <map_pars_fragment>
+#include <alphamap_pars_fragment>
+#include <aomap_pars_fragment>
+#include <lightmap_pars_fragment>
+#include <emissivemap_pars_fragment>
+#include <envmap_pars_fragment>
+#include <fog_pars_fragment>
+#include <bsdfs>
+#include <cube_uv_reflection_fragment>
+#include <lights_pars>
+#include <lights_physical_pars_fragment>
+#include <shadowmap_pars_fragment>
+#include <bumpmap_pars_fragment>
+#include <normalmap_pars_fragment>
+#include <roughnessmap_pars_fragment>
+#include <metalnessmap_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+#include <clipping_planes_pars_fragment>
+
+vec3 perturbNormalArb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy ) {
+
+	vec3 vSigmaX = dFdx( surf_pos );
+	vec3 vSigmaY = dFdy( surf_pos );
+	vec3 vN = surf_norm;		// normalized
+
+	vec3 R1 = cross( vSigmaY, vN );
+	vec3 R2 = cross( vN, vSigmaX );
+
+	float fDet = dot( vSigmaX, R1 );
+
+	vec3 vGrad = sign( fDet ) * ( dHdxy.x * R1 + dHdxy.y * R2 );
+	return normalize( abs( fDet ) * surf_norm - vGrad );
+
+}
+
+float noise( in vec3 x ) {
+
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+	f = f*f*(3.0-2.0*f);
+#ifndef HIGH_QUALITY_NOISE
+	vec2 uv = (p.xy+vec2(37.0,17.0)*p.z) + f.xy;
+	vec2 rg = texture2D( noiseMap, (uv+ 0.5)/256.0 ).yx;
+#else
+	vec2 uv = (p.xy+vec2(37.0,17.0)*p.z);
+	vec2 rg1 = texture2D( noiseMap, (uv+ vec2(0.5,0.5))/256.0 ).yx;
+	vec2 rg2 = texture2D( noiseMap, (uv+ vec2(1.5,0.5))/256.0 ).yx;
+	vec2 rg3 = texture2D( noiseMap, (uv+ vec2(0.5,1.5))/256.0 ).yx;
+	vec2 rg4 = texture2D( noiseMap, (uv+ vec2(1.5,1.5))/256.0 ).yx;
+	vec2 rg = mix( mix(rg1,rg2,f.x), mix(rg3,rg4,f.x), f.y );
+#endif
+	return mix( rg.x, rg.y, f.z );
+
+}
+
+float stripe( float y ) {
+
+	return smoothstep( .4, .6, .5 + .5 * sin( 7.5 * y ) );
+
+}
+
+vec2 pattern( vec3 p ) {
+
+	float e = .0001;
+
+	//float prev = stripe( vWorldPosition.y +  e );
+	//float cur = stripe( vWorldPosition.y );
+
+	float prev = noise( vWorldPosition + e );
+	float cur = noise( vWorldPosition );
+
+	//float prev = stripe( .5 * ( vWorldPosition.x + vWorldPosition.y ) +  e );
+	//float cur = stripe( .5 * ( vWorldPosition.x + vWorldPosition.y ) );
+
+	//float prev = stripe( length( vWorldPosition.xy ) +  e );
+	//float cur = stripe( length( vWorldPosition.xy ) );
+
+	return vec2( cur, prev - cur );
+
+}
+
+void main() {
+	#include <clipping_planes_fragment>
+	vec4 diffuseColor = vec4( diffuse, opacity );
+	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+	vec3 totalEmissiveRadiance = emissive;
+	#include <logdepthbuf_fragment>
+
+	vec2 p = pattern( vWorldPosition );
+	diffuseColor.rgb *= p.x;
+	diffuseColor.rgb = vec3( noise( vWorldPosition ) );
+
+	#include <color_fragment>
+	#include <alphamap_fragment>
+	#include <alphatest_fragment>
+	#include <specularmap_fragment>
+	#include <roughnessmap_fragment>
+	#include <metalnessmap_fragment>
+	#include <normal_flip>
+
+	#ifdef FLAT_SHADED
+		vec3 fdx = vec3( dFdx( vViewPosition.x ), dFdx( vViewPosition.y ), dFdx( vViewPosition.z ) );
+		vec3 fdy = vec3( dFdy( vViewPosition.x ), dFdy( vViewPosition.y ), dFdy( vViewPosition.z ) );
+		vec3 normal = normalize( cross( fdx, fdy ) );
+	#else
+		vec3 normal = normalize( vNormal ) * flipNormal;
+	#endif
+	#ifdef USE_NORMALMAP
+		normal = perturbNormal2Arb( -vViewPosition, normal );
+	#elif defined( USE_BUMPMAP )
+		normal = perturbNormalArb( -vViewPosition, normal, dHdxy_fwd() );
+	#endif
+
+	normal = perturbNormalArb( -vViewPosition, normal, vec2( 0., p.y ) );
+
+	float rim = 1. - max( 0., abs( dot( normalize( normal ), normalize( -vViewPosition ) ) ) );
+
+	#include <emissivemap_fragment>
+	#include <lights_physical_fragment>
+	#include <lights_template>
+	#include <aomap_fragment>
+	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;
+	outgoingLight += smoothstep( .5, 1., rim );
+	gl_FragColor = vec4( outgoingLight, diffuseColor.a );
+	#include <premultiplied_alpha_fragment>
+	#include <tonemapping_fragment>
+	#include <encodings_fragment>
+	#include <fog_fragment>
+}`;
+
+	var material = new MeshCustomMaterial( {
+		u: {
+			emissive : { value: new THREE.Color( 0x000000 ) },
+			roughness: { value: .5 },
+			metalness: { value: 1 },
+			envMapIntensity : { value: 1 },
+			distortion: { value: 0 },
+			time: { value: 0 },
+			noiseMap: { type: 't', value: new THREE.TextureLoader().load( '../assets/tex16.png' ) }
+		},
+		vertexShader: vs,
+		fragmentShader: fs,
+		wireframe: !true,
+		roughness: .1,
+		metalness: .5,
+		color: 0xffffff
+	});
 
 	effect = new THREE.MarchingCubes( resolution, material, true, true );
 	effect.position.set( 0, 0, 0 );
@@ -56,8 +293,12 @@ function initScene( id, randomize ) {
 
 	effect.init( resolution );
 	effect.isolation = 80;
+	effect.castShadow = true;
+	effect.receiveShadow = true;
 
 	scene.add( effect );
+
+	return effect;
 
 }
 
@@ -68,21 +309,23 @@ function init() {
 	scene = new THREE.Scene();
 
 	camera = new THREE.PerspectiveCamera( 45, 1, 1, 10000 );
-	camera.position.set( -500, 500, 1500 );
+	camera.position.set( 0, 10, -15 );
 
 	scene.add( camera );
 
-	renderer = new THREE.WebGLRenderer( { antialias: !true, preserveDrawingBuffer: true } );
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x261b1f, 1 );
+	renderer.setClearColor( 0xffffff, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
+	helper = new FBOHelper( renderer );
+
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
-	initScene( 'lorenz' );
+	effect = initScene();
 	onWindowResized();
 
 	window.addEventListener( 'resize', onWindowResized );
@@ -100,9 +343,11 @@ function onWindowResized( event ) {
 	camera.aspect = w / h;
 	camera.updateProjectionMatrix();
 
+	helper.setSize( w, h );
+
 }
 
-function updateCubes( object, time  ) {
+function updateCubes( object, time, cohesion ) {
 
 	object.reset();
 
@@ -119,6 +364,10 @@ function updateCubes( object, time  ) {
 		bally = Math.abs( Math.cos( i + 1.12 * time * Math.cos( 1.22 + 0.1424 * i ) ) ) * 0.77; // dip into the floor
 		ballz = Math.cos( i + 1.32 * time * 0.1 * Math.sin( ( 0.92 + 0.53 * i ) ) ) * 0.27 + 0.5;
 
+		ballx = Maf.mix( .5, ballx, cohesion );
+		bally = Maf.mix( .5, bally, cohesion );
+		ballz = Maf.mix( .5, ballz, cohesion );
+
 		object.addBall(ballx, bally, ballz, strength, subtract);
 
 	}
@@ -130,9 +379,11 @@ function animate() {
 	requestAnimationFrame( animate );
 
 	controls.update();
-	updateCubes( effect, 0 * .001 * performance.now() );
+	var t = .001 * performance.now();
+	updateCubes( effect, t, .5 + .5 * Math.sin( 1.1 * t ) );
 
 	renderer.render( scene, camera );
+	helper.update();
 
 }
 
