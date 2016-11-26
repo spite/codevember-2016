@@ -2,6 +2,8 @@
 
 ( function() {
 
+var AudioContext = window.AudioContext || window.webkitAudioContext;
+
 function OdeoSoundCloudPlayer( id, odeo ) {
 
 	this.id = id;
@@ -81,6 +83,8 @@ function OdeoMicrophone( odeo ) {
 }
 
 OdeoMicrophone.prototype.play = function() {
+
+	if( !navigator.getUserMedia ) return;
 
 	navigator.getUserMedia( { audio: true }, function( stream ) {
 
