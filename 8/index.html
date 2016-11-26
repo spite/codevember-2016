@@ -201,11 +201,11 @@ vec2 pattern( vec3 p ) {
 
 	float e = .0001;
 
-	//float prev = stripe( vWorldPosition.y +  e );
-	//float cur = stripe( vWorldPosition.y );
+	float prev = stripe( vWorldPosition.y +  e );
+	float cur = stripe( vWorldPosition.y );
 
-	float prev = noise( vWorldPosition + e );
-	float cur = noise( vWorldPosition );
+	//float prev = noise( vWorldPosition + e );
+	//float cur = noise( vWorldPosition );
 
 	//float prev = stripe( .5 * ( vWorldPosition.x + vWorldPosition.y ) +  e );
 	//float cur = stripe( .5 * ( vWorldPosition.x + vWorldPosition.y ) );
@@ -226,7 +226,6 @@ void main() {
 
 	vec2 p = pattern( vWorldPosition );
 	diffuseColor.rgb *= p.x;
-	diffuseColor.rgb = vec3( noise( vWorldPosition ) );
 
 	#include <color_fragment>
 	#include <alphamap_fragment>
