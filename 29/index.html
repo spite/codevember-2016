@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Bands</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<h1>29. Bands</h1>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
+				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p><b>Credits</b></p>
+				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+			</div>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/ImprovedNoise.js"></script>
+		<script src="../js/Common.js"></script>
+
+<script>
+
+// https://twitter.com/archillect/status/796920407429357568
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+var strips = [];
+
+var helper;
+
+var container = document.getElementById( 'container' );
+var n = new ImprovedNoise();
+
+function initScene() {
+
+	var light = new THREE.HemisphereLight( 0, 0xffffff, .5 );
+	scene.add( light );
+
+	var light = new THREE.DirectionalLight( 0xffffff, .5 );
+	light.position.set( 1,2,1 );
+	light.castShadow = true;
+	scene.add( light );
+
+	var r = 60;
+	light.shadow.camera.near = -500;
+	light.shadow.camera.far = 500;
+	light.shadow.camera.left = -r;
+	light.shadow.camera.right = r;
+	light.shadow.camera.top = r;
+	light.shadow.camera.bottom = -r;
+	light.shadow.camera.updateProjectionMatrix();
+
+	light.shadow.bias = -0.00045;
+
+	var light2 = new THREE.DirectionalLight( 0xffffff, .5 );
+	light2.position.set( 2,3,1 );
+	light2.castShadow = true;
+	scene.add( light2 );
+
+	var r = 60;
+	light2.shadow.camera.near = -500;
+	light2.shadow.camera.far = 500;
+	light2.shadow.camera.left = -r;
+	light2.shadow.camera.right = r;
+	light2.shadow.camera.top = r;
+	light2.shadow.camera.bottom = -r;
+	light2.shadow.camera.updateProjectionMatrix();
+
+	light2.shadow.bias = -0.00045;
+
+	renderer.render( scene, camera );
+	helper.attach( light.shadow.map, 'light' );
+	helper.attach( light2.shadow.map, 'light2' );
+
+	var cube = new THREE.Mesh( new THREE.BoxBufferGeometry( 10, 10, 10 ), new THREE.MeshStandardMaterial() );
+	//scene.add( cube );
+	cube.castShadow = cube.receiveShadow = true;
+
+	var material = new THREE.MeshStandardMaterial( {
+		color: 0xffffff,
+		side: THREE.DoubleSide,
+		roughness: 1,
+		metalness: 0,
+		wireframe: !true
+	} );
+
+	var depthMaterial = new THREE.ShaderMaterial( {
+		vertexShader: THREE.ShaderChunk.depth_vert,
+		fragmentShader: '#define DEPTH_PACKING 3200' + "\r\n" + THREE.ShaderChunk.depth_frag,
+		side: THREE.DoubleSide,
+		transparent: false,
+		depthTest: true,
+		depthWrite: true
+	} );
+
+	//material = depthMaterial;
+
+	var floor = new THREE.Mesh( new THREE.PlaneBufferGeometry( 10000, 10000 ), material );
+	scene.add( floor );
+	floor.position.z = 5000 + 35;
+	floor.rotation.x = Math.PI / 2;
+	floor.castShadow = true;
+	floor.receiveShadow = true;
+	//floor.customDepthMaterial = depthMaterial;
+
+	var floor = new THREE.Mesh( new THREE.PlaneBufferGeometry( 10000, 10000 ), material );
+	scene.add( floor );
+	floor.position.z = - ( 5000 + 35 );
+	floor.rotation.x = Math.PI / 2;
+	floor.castShadow = true;
+	floor.receiveShadow = true;
+	//floor.customDepthMaterial = depthMaterial;
+
+	var floor = new THREE.Mesh( new THREE.PlaneBufferGeometry( 10000, 70 ), material );
+	scene.add( floor );
+	floor.position.x = - ( 5000 + 50 );
+	floor.rotation.x = Math.PI / 2;
+	floor.castShadow = true;
+	floor.receiveShadow = true;
+	//floor.customDepthMaterial = depthMaterial;
+
+	var floor = new THREE.Mesh( new THREE.PlaneBufferGeometry( 10000, 70 ), material );
+	scene.add( floor );
+	floor.position.x = 5000 + 50;
+	floor.rotation.x = Math.PI / 2;
+	floor.castShadow = true;
+	floor.receiveShadow = true;
+	//floor.customDepthMaterial = depthMaterial;
+
+	var rotMatrix = new THREE.Matrix4();
+	rotMatrix.makeRotationX( Math.PI / 2 );
+	var stripGeometry = new THREE.PlaneBufferGeometry( 100, 10, 100, 1 );
+	stripGeometry.applyMatrix( rotMatrix );
+
+	for( var j = 0; j < 7; j++ ) {
+
+		var strip = new THREE.Mesh( stripGeometry.clone(), material );
+		strip.position.z = ( j - 3 ) * 10;
+		strips.push( strip );
+		strip.castShadow = true;
+		strip.receiveShadow = true;
+		scene.add( strip );
+
+		//strip.customDepthMaterial = depthMaterial;
+
+		var points = strip.geometry.attributes.position.array;
+		for( var k = 0; k < points.length; k +=3 ) {
+
+			var x = points[ k ];
+			var y = points[ k + 1 ];
+			var z = points[ k + 2 ];
+
+			var a = 10. * Maf.parabola( x / 100 + .5, 1 );
+			points[ k + 1 ] += a * Math.sin( .1 * ( x ) + j );
+
+		}
+		strip.geometry.computeVertexNormals()
+
+	}
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	//scene.fog = new THREE.FogExp2( 0, .0025 );
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( -40, 40, 40 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: !true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	helper = new FBOHelper( renderer );
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+	helper.setSize( w, h );
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	var t = .001 * performance.now();
+	var freq = .5 + .5 * Math.cos( t );
+
+	for( var j = 0; j < strips.length; j++ ) {
+
+		var strip = strips[ j ];
+
+		var points = strip.geometry.attributes.position.array;
+		for( var k = 0; k < points.length; k +=3 ) {
+
+			var x = points[ k ];
+			var y = points[ k + 1 ];
+			var z = points[ k + 2 ];
+
+			var a = Maf.parabola( x / 100 + .5, 1 );
+			a = Maf.smoothStep( 0, 1, a );
+			a *= 10;
+			var s = .005 + .001 *  j ;
+			var noise = n.noise( s * x + t, s * j, s * j + j ) +
+				n.noise( 2 * s * x + t, s * j, s * j + j ) +
+				n.noise( 4 * s * x + t, s * j, s * j + j );
+			points[ k + 1 ] = a * noise;
+
+		}
+		strip.geometry.attributes.position.needsUpdate = true;
+		strip.geometry.computeVertexNormals()
+
+	}
+
+	renderer.render( scene, camera );
+	helper.update();
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
