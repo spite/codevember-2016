@@ -76,6 +76,9 @@ b{
 	overflow: hidden;
 	padding: 20px;
 	margin-bottom: 1em;
+	height: calc(100% - 300px);
+    overflow: auto;
+    pointer-events: auto;
 }
 #details.hidden{
 	opacity: 0;
