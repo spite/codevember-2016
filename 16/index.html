@@ -116,7 +116,7 @@ void main() {
 	a = smoothstep( .75, 1., .5 + .5 * cos( vUv.x * 256. ) );
 	a *= smoothstep( .5, 1., .5 + .5 * sin( vUv.y * 4096. ) );
 	a *= intensity;// * ( 1. - vUv.y );
-	gl_FragColor = vec4( 0., 1., 0., a );
+	gl_FragColor = vec4( vec3( 0., 1., 0. ), a );
 
 }
 </script>
@@ -357,6 +357,10 @@ void main() {
 		applyOverlayToChannel( color.b, interlace )
 	);
 
+    float grid = smoothstep( .995, 1., .5 + .5 * cos( vUv.x * resolution.x / 20. ) );
+    grid += smoothstep( .995, 1., .5 + .5 * cos( vUv.y * resolution.y / 20. ) );
+    color *= 1. - .125 * grid;
+
     gl_FragColor = color;
 
 }
@@ -394,8 +398,8 @@ var odeo = new Odeo( {
 	//odeo.useMicrophone();
 	e.preventDefault();
 })*/
-odeo.useMicrophone();
-//odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
+//odeo.useMicrophone();
+odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
 //odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
 //odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
 
@@ -544,7 +548,7 @@ function init() {
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0, 1 );
+	renderer.setClearColor( 0x000404, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
@@ -618,7 +622,7 @@ function animate() {
 
 	targetPtr = 1 - targetPtr;
 
-	helper.update();
+	//helper.update();
 
 }
 
