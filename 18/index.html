@@ -27,10 +27,15 @@
 precision highp float;
 
 attribute vec3 position;
+attribute vec3 normal;
 attribute float sphereId;
 
+uniform mat3 normalMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
+
+uniform mat4 prevModelViewMatrix;
+uniform mat4 prevProjectionMatrix;
 
 uniform sampler2D starPositions;
 uniform sampler2D colors;
@@ -44,7 +49,16 @@ void main() {
 	vec2 uv = vec2( mod( sphereId, dimensions.x ) / dimensions.x, floor( sphereId / dimensions.x ) / dimensions.y );
 	vec3 p = texture2D( starPositions, uv ).xyz;
 	p += position;
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1. );
+
+	vec4 prev = prevProjectionMatrix * prevModelViewMatrix * vec4( p, 1. );
+	vec4 cur = projectionMatrix * modelViewMatrix * vec4( p, 1. );
+	vec3 n = ( projectionMatrix * vec4( normalMatrix * normal, 1. ) ).xyz;
+
+	vec3 dir = normalize( cur.xyz - prev.xyz );
+	if( dot( dir, n ) > 0. ) cur.xyz += dir;
+	else cur.xyz -= dir;
+
+	gl_Position = cur;
 
 }
 
@@ -185,42 +199,6 @@ void main() {
 }
 </script>
 
-<script type="x-shader/x-fragment" id="tilt-shift-fs" >
-precision highp float;
-
-uniform sampler2D inputTexture;
-uniform vec2 resolution;
-
-varying vec2 vUv;
-
-float smootherstep(float edge0, float edge1, float x) {
-
-    x = clamp((x - edge0)/(edge1 - edge0), 0.0, 1.0);
-    return x*x*x*(x*(x*6. - 15.) + 10.);
-
-}
-
-void main(){
-
-	vec4 sum = vec4( 0. );
-	float d = abs( .5 - vUv.y );
-	vec2 inc = vec2( 0., .005 * smootherstep( 0., .75, d ) );
-
-	sum += texture2D( inputTexture, ( vUv - inc * 4. ) ) * 0.051;
-	sum += texture2D( inputTexture, ( vUv - inc * 3. ) ) * 0.0918;
-	sum += texture2D( inputTexture, ( vUv - inc * 2. ) ) * 0.12245;
-	sum += texture2D( inputTexture, ( vUv - inc * 1. ) ) * 0.1531;
-	sum += texture2D( inputTexture, ( vUv + inc * 0. ) ) * 0.1633;
-	sum += texture2D( inputTexture, ( vUv + inc * 1. ) ) * 0.1531;
-	sum += texture2D( inputTexture, ( vUv + inc * 2. ) ) * 0.12245;
-	sum += texture2D( inputTexture, ( vUv + inc * 3. ) ) * 0.0918;
-	sum += texture2D( inputTexture, ( vUv + inc * 4. ) ) * 0.051;
-
-	gl_FragColor = sum;
-
-}
-</script>
-
 <script type="x-shader/x-fragment" id="final-fs" >
 precision highp float;
 
@@ -354,8 +332,8 @@ void main() {
 
 var container, renderer, camera, controls, scene;
 var mesh, targets;
-var copyShader, combineShader, finalShader, tiltShiftShader;
-var baseFBO, glowFBO, combineFBO, tiltShiftFBO;
+var copyShader, combineShader, finalShader;
+var baseFBO, glowFBO, combineFBO;
 var rtScene, rtCamera, rtQuad;
 var orthoScene, orthoCamera, orthoQuad;
 var targetPtr = 0;
@@ -402,6 +380,12 @@ function memcpy (src, srcOffset, dst, dstOffset, length) {
 
 function initScene() {
 
+	var bkg = new THREE.Mesh(
+		new THREE.IcosahedronBufferGeometry( 2000, 3 ),
+		new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( '../assets/space.png' ), side: THREE.BackSide, transparent: true, opacity: .1 } )
+	);
+	scene.add( bkg );
+
 	var width = 128;
 	var height = 128;
 	var stars = width * height;
@@ -413,9 +397,11 @@ function initScene() {
 
 	var l = starGeometry.attributes.position.array.length;
 	var positions = new Float32Array( stars * l );
+	var normals = new Float32Array( stars * l );
 	var indices = new Float32Array( stars * starGeometry.attributes.position.count );
 	for( var j = 0; j < stars * l; j += l ){
 		memcpy( starGeometry.attributes.position.array, 0, positions, j, l );
+		memcpy( starGeometry.attributes.normal.array, 0, normals, j, l );
 	}
 	var l2 = starGeometry.attributes.position.count;
 	for( var j = 0; j < stars; j++ ){
@@ -447,6 +433,7 @@ function initScene() {
 	helper.attach( starsTexture, 'positions' );
 
 	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	geometry.addAttribute( 'normal', new THREE.BufferAttribute( normals, 3 ) );
 	geometry.addAttribute( 'sphereId', new THREE.BufferAttribute( indices, 1 ) );
 
 	var colors = new Float32Array( [
@@ -471,7 +458,9 @@ function initScene() {
 		uniforms: {
 			colors: { type: 'fv', value: colorTexture },
 			dimensions: { type: 'v2', value: dimensions },
-			starPositions: { type: '3fv', value: starsTexture }
+			starPositions: { type: '3fv', value: starsTexture },
+			prevModelViewMatrix: { type: 'm4', value: new THREE.Matrix4() },
+			prevProjectionMatrix: { type: 'm4', value: new THREE.Matrix4() }
 		},
 		vertexShader: document.getElementById( 'stars-vs' ).textContent,
 		fragmentShader: document.getElementById( 'stars-fs' ).textContent,
@@ -484,7 +473,6 @@ function initScene() {
 	baseFBO = createRenderTarget();
 	glowFBO = createRenderTarget();
 	combineFBO = createRenderTarget();
-	tiltShiftFBO = createRenderTarget();
 
 	helper.attach( baseFBO, 'base' );
 	helper.attach( glowFBO, 'glow' );
@@ -508,15 +496,6 @@ function initScene() {
 		},
 		vertexShader: document.getElementById('ortho-vs').textContent,
 		fragmentShader: document.getElementById('copy-fs').textContent,
-	} );
-
-	tiltShiftShader = new THREE.RawShaderMaterial( {
-		uniforms: {
-			inputTexture: { type: 't', value: combineFBO.texture },
-			resolution: { type: 'v2', value: resolution },
-		},
-		vertexShader: document.getElementById('ortho-vs').textContent,
-		fragmentShader: document.getElementById('tilt-shift-fs').textContent,
 	} );
 
 	finalShader = new THREE.RawShaderMaterial( {
@@ -590,7 +569,6 @@ function onWindowResized( event ) {
 	baseFBO.setSize( w * dPR, h * dPR );
 	combineFBO.setSize( w * dPR, h * dPR );
 	glowFBO.setSize( sW, sH );
-	tiltShiftFBO.setSize( sW, sH );
 
 	orthoQuad.scale.set( w, h, 1 );
 
@@ -610,7 +588,7 @@ function animate() {
 
 	//controls.update();
 
-	var t = .0005 * performance.now();
+	var t = .001 * performance.now();
 	camera.position.x = 200 * Math.cos( t );
 	camera.position.y = 200 * Math.cos( .9 * t );
 	camera.position.z = 200 * Math.cos( 1.1 * t );
@@ -618,17 +596,16 @@ function animate() {
 	camera.rotation.y = 2 * Math.PI * Math.cos( .11 * t );
 	camera.rotation.z = 2 * Math.PI * Math.cos( .12 * t );
 
-	//renderer.render( scene, camera );
-
 	renderer.render( scene, camera, baseFBO );
 	orthoQuad.material = copyShader;
 	renderer.render( orthoScene, orthoCamera, glowFBO );
 	orthoQuad.material = combineShader;
 	renderer.render( orthoScene, orthoCamera, combineFBO );
-//	orthoQuad.material = tiltShiftShader;
-//	renderer.render( orthoScene, orthoCamera, tiltShiftFBO );
 	orthoQuad.material = finalShader;
 	renderer.render( orthoScene, orthoCamera );
+
+	mesh.material.uniforms.prevModelViewMatrix.value.multiplyMatrices( camera.matrixWorldInverse, mesh.matrixWorld );
+	mesh.material.uniforms.prevProjectionMatrix.value.copy( camera.projectionMatrix );
 
 	helper.update();
 
