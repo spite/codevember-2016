@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>GPU-powered Genetic Algorithm</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<h1>5. GPU-powered Genetic Algorithm</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+
+<script type="x-shader/x-vertex" id="render-vs">
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform sampler2D dnaTexture;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+void main() {
+
+	vec3 p = texture2D( dnaTexture, uv ).rgb;
+	//p = vec3( uv, 0. );
+
+	gl_Position = vec4( p.xyz, 1. );
+
+}
+
+</script>
+
+<script type="x-shader/x-vertex" id="render-fs">
+precision highp float;
+
+void main() {
+
+	gl_FragColor = vec4( 1. );
+
+}
+
+</script>
+
+<script>
+
+// http://alteredqualia.com/visualization/evolve/
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function initScene() {
+
+	var reference = new THREE.ImageLoader().load( '../assets/mona-lisa.jpg', function() {
+
+		var triangles = 1;
+
+		var DNATexture = new THREE.WebGLRenderTarget( 4, triangles, {
+			wrapS: THREE.ClampToEdgeWrapping,
+			wrapT: THREE.ClampToEdgeWrapping,
+			format: THREE.RGBAFormat,
+			type: THREE.FloatType,
+			stencilBuffer: false,
+			depthBuffer: false
+		});
+
+		var ptr = 0;
+		var data = new Float32Array( triangles * 4 * 4 );
+		for( var y = 0; y < triangles; y++ ){
+			for( var x = 0; x < 4; x++ ) {
+
+				data[ ptr ] = Maf.randomInRange( -1, 1 );
+				data[ ptr + 1 ] = Maf.randomInRange( -1, 1 );
+				data[ ptr + 2 ] = Maf.randomInRange( -1, 1 );
+				data[ ptr + 3 ] = Maf.randomInRange( -1, 1 );
+
+				ptr += 4;
+			}
+		}
+		data[ 0 ] = -1; data[ 1 ] = 1;
+		data[ 4 ] = 1; data[ 5 ] = 1;
+		data[ 8 ] = -1; data[ 9 ] = -1;
+
+		var originalDNATexture = new THREE.DataTexture(
+			data,
+			4, triangles,
+			THREE.RGBAFormat, THREE.FloatType,
+		);
+		originalDNATexture.needsUpdate= true;
+
+		helper.attach( originalDNATexture, 'dna' );
+
+		var geometry = new THREE.BufferGeometry();
+		var uvs = new Float32Array( triangles * 2 * 3 );
+		var positions = new Float32Array( triangles * 3* 3 );
+
+		for( var j = 0, ptr = 0; j < triangles * 3; j++, ptr += 2 ) {
+
+			uvs[ ptr ] = ( ( j % 3 ) / 2 ) * 1 / 2;
+			uvs[ ptr + 1 ] = Math.floor( j / 3 ) / triangles;
+
+		}
+
+		geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+		geometry.addAttribute( 'uv', new THREE.BufferAttribute( uvs, 2 ) );
+
+		var material = new THREE.RawShaderMaterial({
+			uniforms:{
+				dnaTexture: originalDNATexture,//DNATexture
+			},
+			vertexShader: document.getElementById( 'render-vs' ).textContent,
+			fragmentShader: document.getElementById( 'render-fs' ).textContent,
+			side: THREE.DoubleSide
+		})
+
+		var triangleMesh = new THREE.Mesh( geometry, material );
+		scene.add( triangleMesh );
+
+	} );
+
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 20 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: !true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	helper = new FBOHelper( renderer );
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+	helper.setSize( w, h );
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	renderer.render( scene, camera );
+	helper.update();
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
