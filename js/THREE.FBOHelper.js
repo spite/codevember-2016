@@ -449,6 +449,13 @@ class FBOHelper {
 
 	}
 
+
+	show( state ) {
+
+		this.list.style.display = state ? 'block' : 'none';
+
+	}
+
 	update() {
 
 		this.renderer.autoClear = false;
