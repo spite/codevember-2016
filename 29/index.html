@@ -143,6 +143,12 @@ function initScene() {
 	floor.receiveShadow = true;
 	//floor.customDepthMaterial = depthMaterial;
 
+	var dome = new THREE.Mesh(
+		new THREE.SphereBufferGeometry( 1000, 60, 18, 0, 2 * Math.PI, 0, Math.PI / 2 ),
+		material
+	);
+	scene.add( dome );
+
 	var rotMatrix = new THREE.Matrix4();
 	rotMatrix.makeRotationX( Math.PI / 2 );
 	var stripGeometry = new THREE.PlaneBufferGeometry( 100, 10, 100, 1 );
@@ -182,7 +188,7 @@ function init() {
 
 	scene = new THREE.Scene();
 
-	//scene.fog = new THREE.FogExp2( 0, .0025 );
+	scene.fog = new THREE.FogExp2( 0xd2d2d2, .0025 );
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
