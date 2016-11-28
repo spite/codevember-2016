@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -16,12 +16,20 @@
 			<p><a href="../9" >Previous</a> | <a href="../11" >Next</a></p>
 			<h1>10. Odeo</h1>
 			<p><a href="#" id="playBtn">Play</a></p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
+				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p><b>Credits</b></p>
+				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
+		<script src="../js/Common.js"></script>
 
 		<script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
 		<script src="../js/Odeo.js"></script>
@@ -99,9 +107,9 @@ document.getElementById( 'playBtn' ).addEventListener( 'click', function( e ) {
 	//odeo.useMicrophone();
 	e.preventDefault();
 })
-//odeo.useMicrophone();
+odeo.useMicrophone();
 //odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
-//odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
+odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
 
 var kickIsOn = false;
 var lastKickTime = 0;
@@ -197,6 +205,8 @@ function init() {
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
