@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Lines</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<h1>25. Lines</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/ImprovedNoise.js"></script>
+
+<script type="x-shader/x-vertex" id="ortho-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+</script>
+
+<script type="x-shader/x-vertex" id="feedback-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform sampler2D feedbackTexture;
+uniform vec2 resolution;
+uniform float time;
+
+varying vec2 vUv;
+
+float normpdf(in float x, in float sigma)
+{
+	return 0.39894*exp(-0.5*x*x/(sigma*sigma))/sigma;
+}
+
+vec4 blur( sampler2D map, vec2 uv ) {
+
+	//vec3 c = texture2D(iChannel0, fragCoord.xy / iResolution.xy).rgb;
+	float xInc = 1. / resolution.x;
+	float yInc = 1. / resolution.y;
+
+	//declare stuff
+	const int mSize = 11;
+	const int kSize = (mSize-1)/2;
+	float kernel[mSize];
+	vec3 final_colour = vec3(0.0);
+
+	//create the 1-D kernel
+	float sigma = 7.0;
+	float Z = 0.0;
+	for (int j = 0; j <= kSize; ++j)
+	{
+		kernel[kSize+j] = kernel[kSize-j] = normpdf(float(j), sigma);
+	}
+
+	//get the normalization factor (as the gaussian has been clamped)
+	for (int j = 0; j < mSize; ++j)
+	{
+		Z += kernel[j];
+	}
+
+	//read out the texels
+	for (int i=-kSize; i <= kSize; ++i)
+	{
+		for (int j=-kSize; j <= kSize; ++j)
+		{
+			final_colour += kernel[kSize+j]*kernel[kSize+i]*texture2D(map, (uv.xy+vec2(float(i) * xInc,float(j) * yInc )) ).rgb;
+
+		}
+	}
+
+	return vec4(final_colour/(Z*Z), 1.0);
+
+}
+
+float random(vec2 n, float offset ){
+	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+vec4 fastBlur( sampler2D map, vec2 uv ) {
+
+	vec2 inc = 1. / resolution;
+	vec4 sum = texture2D( map, uv + vec2( 0., -inc.y ) ) +
+		texture2D( map, uv + vec2( 0., inc.y ) ) +
+		texture2D( map, uv + vec2( -inc.x, 0. ) ) +
+		texture2D( map, uv + vec2( inc.y, 0. ) );
+
+	return sum / 4.;
+
+}
+
+void main() {
+
+	vec2 uv = vUv;
+	vec2 uv2 = ( ( vUv - .5 ) * .99 ) + .5;
+	uv2 += .0005 * random( uv2, time );
+	//gl_FragColor = .9 * texture2D( feedbackTexture, uv2 ) + texture2D( inputTexture, uv );
+	gl_FragColor = .95 * fastBlur( feedbackTexture, uv2 ) + texture2D( inputTexture, uv );
+	//vec4 blurred = blur( feedbackTexture, uv2 );
+	//gl_FragColor = .95 * blurred + texture2D( inputTexture, uv );
+
+}
+</script>
+
+<script type="x-shader/x-vertex" id="field-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+
+</script>
+
+<script type="x-shader/x-fragment" id="field-fs" >
+precision highp float;
+
+varying vec2 vUv;
+
+void main() {
+
+	float intensity = smoothstep( .95, 1., sin( 500. * vUv.y ) );
+	vec4 c = vec4( vec3( 1., 1., 1. ) * intensity, 1. );
+	gl_FragColor = c;
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="copy-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+
+varying vec2 vUv;
+
+void main() {
+
+	gl_FragColor = texture2D( inputTexture, vUv );
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="final-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+
+uniform float boost;
+uniform float reduction;
+
+uniform float amount;
+uniform float time;
+
+varying vec2 vUv;
+
+#define FXAA_REDUCE_MIN   (1.0/128.0)
+#define FXAA_REDUCE_MUL   (1.0/8.0)
+#define FXAA_SPAN_MAX     8.0
+
+float random(vec2 n, float offset ){
+	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+void main() {
+
+    vec2 res = 1. / resolution;
+
+    vec3 rgbNW = texture2D( inputTexture, ( vUv.xy + vec2( -1.0, -1.0 ) * res ) ).xyz;
+    vec3 rgbNE = texture2D( inputTexture, ( vUv.xy + vec2( 1.0, -1.0 ) * res ) ).xyz;
+    vec3 rgbSW = texture2D( inputTexture, ( vUv.xy + vec2( -1.0, 1.0 ) * res ) ).xyz;
+    vec3 rgbSE = texture2D( inputTexture, ( vUv.xy + vec2( 1.0, 1.0 ) * res ) ).xyz;
+    vec4 rgbaM  = texture2D( inputTexture,  vUv.xy  * res );
+    vec3 rgbM  = rgbaM.xyz;
+    vec3 luma = vec3( 0.299, 0.587, 0.114 );
+
+    float lumaNW = dot( rgbNW, luma );
+    float lumaNE = dot( rgbNE, luma );
+    float lumaSW = dot( rgbSW, luma );
+    float lumaSE = dot( rgbSE, luma );
+    float lumaM  = dot( rgbM,  luma );
+    float lumaMin = min( lumaM, min( min( lumaNW, lumaNE ), min( lumaSW, lumaSE ) ) );
+    float lumaMax = max( lumaM, max( max( lumaNW, lumaNE) , max( lumaSW, lumaSE ) ) );
+
+    vec2 dir;
+    dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+    dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+
+    float dirReduce = max( ( lumaNW + lumaNE + lumaSW + lumaSE ) * ( 0.25 * FXAA_REDUCE_MUL ), FXAA_REDUCE_MIN );
+
+    float rcpDirMin = 1.0 / ( min( abs( dir.x ), abs( dir.y ) ) + dirReduce );
+    dir = min( vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX),
+          max( vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
+                dir * rcpDirMin)) * res;
+    vec4 rgbA = (1.0/2.0) * (
+    texture2D(inputTexture,  vUv.xy + dir * (1.0/3.0 - 0.5)) +
+    texture2D(inputTexture,  vUv.xy + dir * (2.0/3.0 - 0.5)));
+    vec4 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (
+    texture2D(inputTexture,  vUv.xy + dir * (0.0/3.0 - 0.5)) +
+    texture2D(inputTexture,  vUv.xy + dir * (3.0/3.0 - 0.5)));
+    float lumaB = dot(rgbB, vec4(luma, 0.0));
+
+    vec4 color;
+    if ( ( lumaB < lumaMin ) || ( lumaB > lumaMax ) ) {
+        color = rgbA;
+    } else {
+        color = rgbB;
+    }
+
+    vec2 position = ( gl_FragCoord.xy / resolution ) - .5;
+	float vignette = length( position );
+    vignette = boost - vignette * reduction;
+
+    color.rgb *= vignette;
+
+    color += vec4( vec3( amount * random( vUv, time ) ), 1. );
+
+    float gamma = 1.2;
+    color.rgb = pow(color.rgb, vec3(1.0/gamma));
+
+    gl_FragColor = color;
+
+}
+
+</script>
+
+<script>
+
+// https://twitter.com/archillect/status/725678465022840833
+// https://twitter.com/archillect/status/797073914321137664
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+var lines = [], plane;
+var n = new ImprovedNoise();
+var baseFBO, targets = [], targetPtr = 0;
+var resolution = new THREE.Vector2();
+var orthoQuad, orthoCamera, orthoScene;
+var feedbackShader, finalShader;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function createRenderTarget() {
+
+	return new THREE.WebGLRenderTarget( 1, 1, {
+		wrapS: THREE.ClampToEdgeWrapping,
+		wrapT: THREE.ClampToEdgeWrapping,
+		format: THREE.RGBAFormat,
+		stencilBuffer: false,
+		depthBuffer: true
+	});
+
+}
+
+function initScene() {
+
+	var points = 100;
+
+	var material = new THREE.LineBasicMaterial({
+		color: 0xffffff
+	});
+
+	for( var y = - 50; y < 50; y+= 1 ) {
+
+		var geometry = new THREE.BufferGeometry();
+		var vertices = new Float32Array( points * 3 )
+		for( var j = 0, ptr = 0; j < points; j++, ptr += 3 ) {
+			vertices[ ptr ] = j - .5 * points;
+			vertices[ ptr + 1 ] = y;
+			vertices[ ptr + 2 ] = 0;
+		}
+		geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+
+		var line = new THREE.Line( geometry, material );
+		scene.add( line );
+
+		lines.push( line );
+
+	}
+
+	baseFBO = createRenderTarget();
+	targets = [ createRenderTarget(), createRenderTarget() ];
+
+	helper.attach( baseFBO, 'base' );
+	helper.attach( targets[ 0 ], '#0' );
+	helper.attach( targets[ 1 ], '#1' );
+
+	feedbackShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			resolution: { type: 'v2', value: new THREE.Vector2() },
+			inputTexture: { type: 't', value: baseFBO.texture },
+			feedbackTexture: { type: 't', value: targets[ 0 ] },
+			time: { type: 'f', value: 0 }
+		},
+		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
+		fragmentShader: document.getElementById( 'feedback-fs' ).textContent,
+	} )
+
+	/*finalShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			inputTexture: { type: 't', value: baseFBO.texture },
+		},
+		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
+		fragmentShader: document.getElementById( 'copy-fs' ).textContent,
+	} )*/
+
+	finalShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			inputTexture: { type: 't', value: baseFBO.texture },
+			resolution: { type: 'v2', value: resolution },
+			boost: { type: 'f', value: 1.1 },
+			reduction: { type: 'f', value: .9 },
+			amount: { type: 'f', value: .1 },
+			time: { type: 'f', value: 0 }
+		},
+		vertexShader: document.getElementById('ortho-vs').textContent,
+		fragmentShader: document.getElementById('final-fs').textContent,
+	} );
+
+	orthoScene = new THREE.Scene();
+	orthoCamera = new THREE.OrthographicCamera( 1 / - 2, 1 / 2, 1 / 2, 1 / - 2, .00001, 1000 );
+	orthoQuad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1 ), feedbackShader );
+	orthoScene.add( orthoQuad );
+
+	/*plane = new THREE.Mesh(
+		new THREE.PlaneBufferGeometry( 100, 100, 99, 99 ),
+		new THREE.RawShaderMaterial( {
+			vertexShader: document.getElementById( 'field-vs' ).textContent,
+			fragmentShader: document.getElementById( 'field-fs' ).textContent,
+			wireframe: !true,
+			side: THREE.DoubleSide
+		} )
+	);
+	scene.add( plane );*/
+
+	update();
+
+}
+
+function fn( x, y, z ) {
+
+	var s = .01;
+
+	return n.noise( s * x, s * y, s * z ) +
+		n.noise( 2. * s * x, 2. * s * y, 2. * s * z ) +
+		n.noise( 8. * s * x, 8. * s * y, 8. * s * z );
+
+}
+
+function normal( x, y, z ) {
+
+	var e = .0001;
+
+	var p1 = new THREE.Vector3( x - e, y, z );
+	p1.z = fn( p1.x, p1.y, p1.z );
+
+	var p2 = new THREE.Vector3( x + e, y, z );
+	p2.z = fn( p2.x, p2.y, p2.z );
+
+	var p3 = new THREE.Vector3( x, y - e, z );
+	p3.z = fn( p3.x, p3.y, p3.z );
+
+	var p4 = new THREE.Vector3( x, y + e, z );
+	p4.z = fn( p4.x, p4.y, p4.z );
+
+	var vx = p2.sub( p1 );
+	var vy = p4.sub( p3 );
+
+	return vx.cross( vy ).normalize();
+
+}
+
+function update() {
+
+	lines.forEach( function( l, id ) {
+
+		var y = id - 50;
+
+		var p = l.geometry.attributes.position;
+		for( var x = 0, ptr = 0; x < p.count; x++, ptr += 3 ){
+
+			var px = ( x / p.count ) * 100 - 50;
+			var py = y;
+			var pz = 0;
+
+			var n = normal( px, py, 12.12 + .01 * performance.now() );
+			var normalScale = 20;
+
+			p.array[ ptr ] = px + n.x * normalScale;
+			p.array[ ptr + 1 ] = py + n.y * normalScale;
+			p.array[ ptr + 2 ] = 10 * fn( px, py, 12.12 );
+
+		}
+
+		l.geometry.attributes.position.needsUpdate = true;
+
+	});
+
+	/*var p = plane.geometry.attributes.position;
+	var ptr = 0;
+
+	for( var y = 0; y < 100; y++ ) {
+		for( var x = 0; x < 100; x++ ) {
+
+			var px = x - 50;
+			var py = y - 50;
+			var pz = 0;
+
+			var n = normal( px, py, 12.12 + .01 * performance.now() );
+			var normalScale = 20;
+
+			p.array[ ptr ] = px + n.x * normalScale;
+			p.array[ ptr + 1 ] = py + n.y * normalScale;
+			p.array[ ptr + 2 ] = 10 * fn( px, py, 12.12 );
+
+			ptr += 3;
+
+		}
+	}
+
+	plane.geometry.attributes.position.needsUpdate = true;*/
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 200 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0, 0 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	helper = new FBOHelper( renderer );
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+	var sW = Maf.nextPowerOfTwo( w ) / 2;
+	var sH = Maf.nextPowerOfTwo( h ) / 2;
+
+	var dPR = renderer.getPixelRatio();
+	resolution.set( w * dPR, h * dPR );
+
+	baseFBO.setSize( w * dPR, h * dPR );
+	targets[ 0 ].setSize( w * dPR, h * dPR );
+	targets[ 1 ].setSize( w * dPR, h * dPR );
+
+	feedbackShader.uniforms.resolution.value.set( w * dPR, h * dPR );
+
+	orthoQuad.scale.set( w, h, 1 );
+
+	orthoCamera.left   = - w / 2;
+	orthoCamera.right  =   w / 2;
+	orthoCamera.top    =   h / 2;
+	orthoCamera.bottom = - h / 2;
+	orthoCamera.updateProjectionMatrix();
+
+	helper.setSize( w, h );
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+	update();
+
+	renderer.render( scene, camera, baseFBO );
+
+	orthoQuad.material = feedbackShader;
+	feedbackShader.uniforms.feedbackTexture.value = targets[ targetPtr ].texture;
+	feedbackShader.uniforms.time.value = .001 * performance.now();
+	renderer.render( orthoScene, orthoCamera, targets[ 1 - targetPtr ] );
+
+	orthoQuad.material = finalShader;
+	finalShader.uniforms.inputTexture.value = targets[ 1 - targetPtr ];
+	renderer.render( orthoScene, orthoCamera );
+
+	targetPtr = 1 - targetPtr;
+
+	helper.update();
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
