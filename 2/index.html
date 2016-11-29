@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<title>Dot Sphere</title>
+	<title>Dotty Earth</title>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
@@ -14,22 +14,25 @@
 	<div id="container"></div>
 	<div id="info" >
 		<p><a href="../1" >Previous</a> | <a href="../3" >Next</a></p>
-		<h1>2. Dot Sphere</h1>
-		<p>Info</p>
-		<p><span class="action" >Toggle camera</span></p>
+		<h1>2. Dotty Earth</h1>
+		<p>An example of building a sphere with dots, making sure there's a uniform density of dots across all the surface. In naive distributions, there's way more points towards the poles than necessary.</p>
+		<p>The algorithm accepts different point sizes and differents spacing between points.</p>
+		<p><span id="toggleBtn" class="action" >Toggle camera</span> or press <b>Space</b></p>
 		<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
-				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p>All points are GL_POINTS, using distance to the center and discard to make the look like dots. There are two buffers, one for vertices and another for colors. Whether there's a dot or no is decided by looking up a mask image loaded in a canvas. The color of the dot is also read from a diffuse texture (earth and clouds), also loaded in their respective canvases. The position of the dot is displaced in the normal direction based on a lookup of a heightmap texture.</p>
+				<p>All images are equirectngular panoramas so can be mapped into a sphere. UV spherical coordinates from the sphere surface need to be adapted to be lookup 2D coordinates for the equirectangular panoramas.</p>
+				<p>All geometry is drawn in a single draw call.</p>
 				<p><b>Credits</b></p>
-				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+				<p>Inspired by <a href="http://archillect.com/static/chapters/initiate/big/PalmerEldritch_03.jpg" >this image</a>.</p>
+				<p>Textures are from <a href="http://visibleearth.nasa.gov/view.php?id=73963" >NASA's Visible Earth</a></p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/kaimallea/isMobile" >isMobile.js</a></p>
 			</div>
 		<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 	</div>
 
 <script src="../js/three.js"></script>
 <script src="../js/OrbitControls.js"></script>
-<script src="../js/Maf.js"></script>
 <script src="../js/Common.js"></script>
 <script src="../js/isMobile.min.js"></script>
 
@@ -88,228 +91,243 @@
 
 // http://archillect.com/static/chapters/initiate/big/PalmerEldritch_03.jpg
 
-	'use strict';
+'use strict';
 
-	var container, renderer, camera, controls, scene;
-	var mesh, dummy = new THREE.Object3D();
+var container, renderer, camera, controls, scene;
+var mesh, dummy = new THREE.Object3D();
+var cameraType = 0;
 
-	var helper;
+var helper;
 
-	var container = document.getElementById( 'container' );
+var container = document.getElementById( 'container' );
 
-	function loadMap( map ) {
+function loadMap( map ) {
 
-		return new Promise( function( resolve, reject ) {
-			var img = new Image();
-			img.addEventListener( 'load', function() {
-				resolve( this );
-			} );
-			img.src = map;
-		});
+	return new Promise( function( resolve, reject ) {
+		var img = new Image();
+		img.addEventListener( 'load', function() {
+			resolve( this );
+		} );
+		img.src = map;
+	});
 
+}
+
+function initScene() {
+
+	var diffuseImg;
+	var compositeImg;
+
+	Promise.all( [
+		loadMap( '../assets/map-composite.jpg' ).then( res => compositeImg = res ),
+		loadMap( '../assets/map-color.jpg' ).then( res => diffuseImg = res ),
+	] ).then( _ => {
+		processImage( compositeImg, diffuseImg );
+		animate()
+	});
+
+}
+
+function azimuth( vector ) {
+
+	return Math.atan2( vector.z, - vector.x );
+
+}
+
+
+function inclination( vector ) {
+
+	return Math.atan2( - vector.y, Math.sqrt( ( vector.x * vector.x ) + ( vector.z * vector.z ) ) );
+
+}
+
+function imageToLookup( img ) {
+
+	var texture = document.createElement( 'canvas' );
+	var ctx = texture.getContext( '2d' );
+
+	texture.width = img.width;
+	texture.height = img.height;
+	ctx.drawImage( img, 0, 0 );
+	var imageData = ctx.getImageData( 0, 0, texture.width, texture.height );
+	var data = imageData.data;
+
+	return function( uv ) {
+		var ptr = Math.floor( uv.y * texture.height ) * texture.width * 4 + Math.floor( uv.x * texture.width ) * 4;
+		return [ data[ ptr ], data[ ptr + 1 ], data[ ptr + 2 ], data[ ptr + 3 ] ];
 	}
 
-	function initScene() {
+}
 
-		var diffuseImg;
-		var compositeImg;
+function processImage( mask, color ) {
 
-		Promise.all( [
-			loadMap( '../assets/map-composite.jpg' ).then( res => compositeImg = res ),
-			loadMap( '../assets/map-color.jpg' ).then( res => diffuseImg = res ),
-		] ).then( _ => {
-			processImage( compositeImg, diffuseImg );
-			animate()
-		});
+	var maskLookup = imageToLookup( mask );
+	var colorLookup = imageToLookup( color );
 
-	}
+	var positions = [];
+	var colors = [];
+	var sizes = [];
 
-	function azimuth( vector ) {
+	var geometry = new THREE.BufferGeometry();
 
-		return Math.atan2( vector.z, - vector.x );
+	var scale = isMobile.any ? 1 : 4;
 
-	}
+	var width = 400, height = 200, size = 1 / scale, aStep = .01 / scale;
+	var uv = new THREE.Vector2();
+	var vertex = new THREE.Vector3();
 
+	for( var a = - Math.PI / 2; a < Math.PI / 2; a += aStep ){
 
-	function inclination( vector ) {
+		var y = .5 * height * Math.sin( a );
+		var r = .5 * height * Math.cos( a );
+		var l = 2 * Math.PI * r;
+		var size = size;
+		var steps = Math.floor( l / size );
+		var offset = ( ( width - ( Math.ceil( steps * size ) ) ) * 2 * Math.PI ) / width;
 
-		return Math.atan2( - vector.y, Math.sqrt( ( vector.x * vector.x ) + ( vector.z * vector.z ) ) );
+		for( var x = 0; x < steps; x++ ) {
 
-	}
+			var radius = r;
+			var ta = x * 2 * Math.PI / steps;
+			ta += offset;
 
-	function imageToLookup( img ) {
+			vertex.set( - radius * Math.cos( ta ), -y, radius * Math.sin( ta ) );
 
-		var texture = document.createElement( 'canvas' );
-		var ctx = texture.getContext( '2d' );
+			uv.set( azimuth( vertex ) / 2 / Math.PI + 0.5, inclination( vertex ) / Math.PI + 0.5 );
 
-		texture.width = img.width;
-		texture.height = img.height;
-		ctx.drawImage( img, 0, 0 );
-		var imageData = ctx.getImageData( 0, 0, texture.width, texture.height );
-		var data = imageData.data;
+			var v = maskLookup( uv );
 
-		return function( uv ) {
-			var ptr = Math.floor( uv.y * texture.height ) * texture.width * 4 + Math.floor( uv.x * texture.width ) * 4;
-			return [ data[ ptr ], data[ ptr + 1 ], data[ ptr + 2 ], data[ ptr + 3 ] ];
-		}
+			if( v[ 0 ] > 0 ) {
 
-	}
+				var v2 = vertex.clone().multiplyScalar( 1 + .025 * v[ 1 ] / 255 );
+				positions.push( v2.x );
+				positions.push( v2.y );
+				positions.push( v2.z );
 
-	function processImage( mask, color ) {
+				var c = colorLookup( uv );
+				colors.push( c[ 0 ] / 255 );
+				colors.push( c[ 1 ] / 255 );
+				colors.push( c[ 2 ] / 255 );
 
-		var maskLookup = imageToLookup( mask );
-		var colorLookup = imageToLookup( color );
+				sizes.push( 1.1 * v[ 0 ] / 255 );
 
-		var positions = [];
-		var colors = [];
-		var sizes = [];
+			}
 
-		var geometry = new THREE.BufferGeometry();
+			if( v[ 2 ] > 64 ) {
 
-		var scale = isMobile.any ? 1 : 4;
+				var v2 = vertex.clone().multiplyScalar( 1 + .1 );
+				positions.push( v2.x );
+				positions.push( v2.y );
+				positions.push( v2.z );
 
-		var width = 400, height = 200, size = 1 / scale, aStep = .01 / scale;
-		var uv = new THREE.Vector2();
-		var vertex = new THREE.Vector3();
+				colors.push( 1 );
+				colors.push( 1 );
+				colors.push( 1 );
 
-		for( var a = - Math.PI / 2; a < Math.PI / 2; a += aStep ){
-
-			var y = .5 * height * Math.sin( a );
-			var r = .5 * height * Math.cos( a );
-			var l = 2 * Math.PI * r;
-			var size = size;
-			var steps = Math.floor( l / size );
-			var offset = ( ( width - ( Math.ceil( steps * size ) ) ) * 2 * Math.PI ) / width;
-
-			for( var x = 0; x < steps; x++ ) {
-
-				var radius = r;
-				var ta = x * 2 * Math.PI / steps;
-				ta += offset;
-
-				vertex.set( - radius * Math.cos( ta ), -y, radius * Math.sin( ta ) );
-
-				uv.set( azimuth( vertex ) / 2 / Math.PI + 0.5, inclination( vertex ) / Math.PI + 0.5 );
-
-				var v = maskLookup( uv );
-
-				if( v[ 0 ] > 0 ) {
-
-					var v2 = vertex.clone().multiplyScalar( 1 + .025 * v[ 1 ] / 255 );
-					positions.push( v2.x );
-					positions.push( v2.y );
-					positions.push( v2.z );
-
-					var c = colorLookup( uv );
-					colors.push( c[ 0 ] / 255 );
-					colors.push( c[ 1 ] / 255 );
-					colors.push( c[ 2 ] / 255 );
-
-					sizes.push( 1.1 * v[ 0 ] / 255 );
-
-				}
-
-				if( v[ 2 ] > 64 ) {
-
-					var v2 = vertex.clone().multiplyScalar( 1 + .1 );
-					positions.push( v2.x );
-					positions.push( v2.y );
-					positions.push( v2.z );
-
-					colors.push( 1 );
-					colors.push( 1 );
-					colors.push( 1 );
-
-					sizes.push( 2. * ( v[ 2 ] - 64 ) / 192 );
-
-				}
+				sizes.push( 2. * ( v[ 2 ] - 64 ) / 192 );
 
 			}
 
 		}
 
-		var geometry = new THREE.BufferGeometry();
-		var particles = positions.length / 3;
-
-		geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( positions ), 3 ) );
-		geometry.addAttribute( 'color', new THREE.BufferAttribute( new Float32Array( colors ), 3 ) );
-		geometry.addAttribute( 'size', new THREE.BufferAttribute( new Float32Array( sizes ), 1 ) );
-		geometry.computeBoundingSphere();
-
-		var material = new THREE.RawShaderMaterial( {
-
-			uniforms: {
-				scale: { value: 1 / scale }
-			},
-			vertexShader: document.getElementById( 'point-vs' ).textContent,
-			fragmentShader: document.getElementById( 'point-fs' ).textContent,
-			transparent: true,
-			alphaTest: 0.5,
-
-		} );
-
-		mesh = new THREE.Points( geometry, material );
-		dummy.add( mesh );
-		scene.add( dummy );
-
-		dummy.rotation.x = 23 * Math.PI / 180;
-
 	}
 
-	function init() {
+	var geometry = new THREE.BufferGeometry();
+	var particles = positions.length / 3;
 
-		container = document.getElementById( 'container' );
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( positions ), 3 ) );
+	geometry.addAttribute( 'color', new THREE.BufferAttribute( new Float32Array( colors ), 3 ) );
+	geometry.addAttribute( 'size', new THREE.BufferAttribute( new Float32Array( sizes ), 1 ) );
+	geometry.computeBoundingSphere();
 
-		scene = new THREE.Scene();
+	var material = new THREE.RawShaderMaterial( {
 
-		camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
-		camera.position.set( 0, 0, 125 );
-		//camera.position.set( 61.01643532501035, -16.024913002353067, 85.53842635074523 );
-		//camera.rotation.set( 0, 1.9, 1.6 );
-		scene.add( camera );
+		uniforms: {
+			scale: { value: 1 / scale }
+		},
+		vertexShader: document.getElementById( 'point-vs' ).textContent,
+		fragmentShader: document.getElementById( 'point-fs' ).textContent,
+		transparent: true,
+		alphaTest: 0.5,
 
-		renderer = new THREE.WebGLRenderer( { antialias: true } );
-		renderer.setPixelRatio( window.devicePixelRatio );
-		renderer.setClearColor( 0x0a051f, 1 );
-		container.appendChild( renderer.domElement );
+	} );
 
-		renderer.shadowMap.enabled = true;
-		renderer.shadowMap.type = THREE.PCFShadowMap;
+	mesh = new THREE.Points( geometry, material );
+	dummy.add( mesh );
+	scene.add( dummy );
 
-		addFullscreenShortcut( renderer.domElement, onWindowResized );
+	dummy.rotation.x = 23 * Math.PI / 180;
 
-		controls = new THREE.OrbitControls( camera, renderer.domElement );
+}
 
-		initScene();
-		onWindowResized();
+function init() {
 
-		window.addEventListener( 'resize', onWindowResized );
+	container = document.getElementById( 'container' );
 
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
+	camera.position.set( 0, 0, 125 );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x0a051f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	controls.zoomSpeed = .1;
+
+	initScene();
+	onWindowResized();
+
+	document.getElementById( 'toggleBtn' ).addEventListener( 'click', function( e ) {
+		cameraType = 1 - cameraType;
+	});
+
+	window.addEventListener( 'keydown', function( e ) {
+		if( e.keyCode === 32 ) {
+			cameraType = 1 - cameraType;
+		}
+	});
+
+	window.addEventListener( 'resize', onWindowResized );
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	if( cameraType === 0 ) {
+		controls.update();
+	} else {
+		camera.position.set( 61.01643532501035, -16.024913002353067, 85.53842635074523 );
+		camera.rotation.set( 0, 1.9, 1.6 );
 	}
+	mesh.rotation.y = .0001 * performance.now();
 
-	function onWindowResized( event ) {
+	renderer.render( scene, camera );
 
-		var w = container.clientWidth;
-		var h = container.clientHeight;
+}
 
-		renderer.setSize( w, h );
-		camera.aspect = w / h;
-		camera.updateProjectionMatrix();
-
-	}
-
-	function animate() {
-
-		requestAnimationFrame( animate );
-
-		//controls.update();
-		mesh.rotation.y = .0001 * performance.now();
-
-		renderer.render( scene, camera );
-
-	}
-
-	window.addEventListener( 'load', init );
+window.addEventListener( 'load', init );
 
 </script>
 
