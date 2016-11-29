@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -15,6 +15,10 @@
 		<div id="info" >
 			<p><a href="../5" >Previous</a> | <a href="../7" >Next</a></p>
 			<h1>6. Wobbly Earth</h1>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			<p><b>Credits</b></p>
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -23,6 +27,7 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/MeshCustomMaterial.js"></script>
 		<script src="../js/EquirectangularToCubemap.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script>
 
@@ -284,8 +289,8 @@ void main() {
 	float phi = -( uv.y + 0.5 ) * PI;
 
 	vec3 np = calc( spherical( r, theta, phi )  );
-	vec3 tangent = calc( spherical( r, theta + inc, phi ) ) - np;
-	vec3 bitangent = calc( spherical( r, theta, phi + inc ) ) - np;
+	vec3 tangent = normalize( calc( spherical( r, theta + inc, phi ) ) - np );
+	vec3 bitangent = normalize( calc( spherical( r, theta, phi + inc ) ) - np );
 	transformedNormal = -normalMatrix * normalize( cross( tangent, bitangent ) );
 
 	vNormal = normalize( transformedNormal );
@@ -357,7 +362,7 @@ void main() {
 	#endif
 }`;
 
-	var geometry = new THREE.BufferGeometry().fromGeometry( new THREE.IcosahedronGeometry( 1, 5 ) );
+	var geometry = new THREE.IcosahedronBufferGeometry( 1, 4 );
 	var material = new MeshCustomMaterial( {
 		u: {
 			emissive : { value: new THREE.Color( 0x000000 ) },
@@ -443,6 +448,8 @@ function init() {
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	scene.fog = new THREE.FogExp2( 0xbfbfbf, .0025 );
 
