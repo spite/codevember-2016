@@ -555,6 +555,7 @@ function init() {
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
 	helper = new FBOHelper( renderer );
+	helper.show( false );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
