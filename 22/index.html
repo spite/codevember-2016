@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Line thickness</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../21" >Previous</a> | <a href="../23" >Next</a></p>
+			<h1>22. Line thickness</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<style>
+		#video{ position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 20px;}
+		</style>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+
+<script type="x-shader/x-vertex" id="vs" >
+
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+uniform sampler2D texture;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+
+</script>
+
+<script type="x-shader/x-fragment" id="fs" >
+precision highp float;
+
+uniform sampler2D map;
+uniform vec2 resolution;
+
+varying vec2 vUv;
+
+float luma(vec3 color) {
+  return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+vec3 pattern() {
+
+	vec2 center = vec2( .5 );
+    vec2 uv = vUv;
+
+    float scale = 1.;
+    float radius = .5;
+    vec2 d = uv - center;
+    float r = length( d * vec2( 1., resolution.y / resolution.x ) );
+    float a = atan(d.y,d.x) + scale*(radius-r)/radius;
+    //a += .1 * iGlobalTime;
+    vec2 uvt = center+r*vec2(cos(a),sin(a));
+
+	vec2 uv2 = vUv;
+    float c = ( .75 + .25 * sin( uvt.x * 1000. ) );
+    vec4 color = texture2D( map, uv2 );
+    float l = luma( color.rgb );
+    float f = smoothstep( .5 * c, c, l );
+	f = smoothstep( 0., .5, f );
+
+	return vec3( f );
+
+}
+
+vec3 pattern2() {
+
+	vec2 p = 10. * vUv;
+
+	float time = 3.4343;
+
+	p += .2*cos( 1.5*p.yx + 1.0*time + vec2(0.1,1.1) );
+	p += .2*cos( 2.4*p.yx + 1.6*time + vec2(4.5,2.6) );
+	//p += .2*cos( 3.3*p.yx + 1.2*time + vec2(3.2,3.4) );
+	//p += .2*cos( 4.2*p.yx + 1.7*iGlobalTime + vec2(1.8,5.2) );
+	//p += .2*cos( 9.1*p.yx + 1.1*iGlobalTime + vec2(6.3,3.9) );
+
+	float r = length( p );
+
+	float c = ( .75 + .25 * sin( r * 100. ) );
+	vec4 color = texture2D( map, vUv );
+
+	float l = luma( color.rgb );
+	float f = smoothstep( .5 * c, c, l );
+	f = smoothstep( 0., .5, f );
+
+	return vec3( f );
+
+}
+
+void main() {
+
+	vec3 col = pattern();
+
+	gl_FragColor = vec4( col,.0);
+
+}
+
+</script>
+
+<script>
+
+// https://twitter.com/archillect/status/796235885952061440
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function initScene( ) {
+
+	var texture = new THREE.TextureLoader().load( '../assets/mona-lisa-256x256.jpg', function() {
+
+		setImage( texture );
+
+	})
+
+}
+
+function setImage( texture ) {
+
+	if( mesh ) scene.remove( mesh );
+	mesh = new THREE.Mesh(
+		new THREE.PlaneBufferGeometry( texture.image.width, texture.image.height ),
+		new THREE.RawShaderMaterial({
+			uniforms:{
+				resolution: { type: 'v2', value: new THREE.Vector2( texture.image.width, texture.image.height ) },
+				map:{ type: 't', value: texture }
+			},
+			vertexShader: document.getElementById( 'vs' ).textContent,
+			fragmentShader: document.getElementById( 'fs' ).textContent
+		})
+	);
+	scene.add( mesh );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 200 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	createDropZone( renderer.domElement, function( res ) {
+		setImage( res );
+	});
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+function createDropZone( element, imgCallback ) {
+
+	var dropzone = element
+	dropzone.className = 'dropzone';
+
+	dropzone.addEventListener('dragenter', function(event){
+		this.style.backgroundColor = 'rgba( 255,255,255,.2 )';
+	}, true );
+
+	dropzone.addEventListener('dragleave', function(event){
+		this.style.backgroundColor = 'transparent';
+	}, true );
+
+	dropzone.addEventListener('dragover', function(event) {
+		this.style.backgroundColor = 'rgba( 255,255,255,.2 )';
+		event.preventDefault();
+	}, true);
+
+	dropzone.addEventListener('drop', function(event) {
+
+		//showLoader( true );
+
+		this.style.backgroundColor = 'transparent';
+		event.preventDefault();
+		var allTheFiles = event.dataTransfer.files;
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			try {
+
+				/*var img = new Image();
+		        img.onload = imgCallback;
+		        img.src = e.currentTarget.result;*/
+		        new THREE.TextureLoader().load( e.currentTarget.result, imgCallback )
+
+				//showLoader( false );
+			} catch( e ) {
+				alert( 'Couldn\'t read that file. Make sure it\'s an mp3 or ogg file (Chrome) or ogg file (Firefox).' );
+			}
+		};
+		reader.readAsDataURL( allTheFiles[ 0 ] );
+	}, true);
+
+	return dropzone;
+
+}
+
+
+</script>
+
+	</body>
+</html>
