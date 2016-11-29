@@ -518,6 +518,7 @@ function init() {
 	container.appendChild( renderer.domElement );
 
 	helper = new FBOHelper( renderer );
+	helper.show( false );
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
