@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Neon sign</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<h1>28. Neon sign</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/flatten.js"></script>
+
+<script type="x-shader/x-vertex" id="ortho-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+</script>
+
+<script type="x-shader/x-vertex" id="diffuse-fs" >
+precision highp float;
+
+uniform sampler2D projectionTexture;
+uniform sampler2D diffuseTexture;
+
+uniform vec2 resolution;
+
+varying vec2 vUv;
+
+float normpdf(in float x, in float sigma)
+{
+	return 0.39894*exp(-0.5*x*x/(sigma*sigma))/sigma;
+}
+
+vec4 blur( sampler2D map, vec2 uv ) {
+
+	//vec3 c = texture2D(iChannel0, fragCoord.xy / iResolution.xy).rgb;
+	float xInc = 1. / resolution.x;
+	float yInc = 1. / resolution.y;
+
+	//declare stuff
+	const int mSize = 11;
+	const int kSize = (mSize-1)/2;
+	float kernel[mSize];
+	vec3 final_colour = vec3(0.0);
+
+	//create the 1-D kernel
+	float sigma = 7.0;
+	float Z = 0.0;
+	for (int j = 0; j <= kSize; ++j)
+	{
+		kernel[kSize+j] = kernel[kSize-j] = normpdf(float(j), sigma);
+	}
+
+	//get the normalization factor (as the gaussian has been clamped)
+	for (int j = 0; j < mSize; ++j)
+	{
+		Z += kernel[j];
+	}
+
+	//read out the texels
+	for (int i=-kSize; i <= kSize; ++i)
+	{
+		for (int j=-kSize; j <= kSize; ++j)
+		{
+			final_colour += kernel[kSize+j]*kernel[kSize+i]*texture2D(map, (uv.xy+vec2(float(i) * xInc,float(j) * yInc )) ).rgb;
+
+		}
+	}
+
+	return vec4(final_colour/(Z*Z), 1.0);
+
+}
+
+void main() {
+
+	gl_FragColor = texture2D( diffuseTexture, vUv ) * blur( projectionTexture, vUv );
+
+}
+
+</script>
+
+<script>
+
+// https://twitter.com/archillect/status/796479991626219520
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var neon, neon2, wall, projShader;
+var projectionFBO, projCamera, diffuseFBO;
+var orthoQuad, orthoCamera, orthoScene;
+var wallTexture;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function createRenderTarget() {
+
+	return new THREE.WebGLRenderTarget( 1, 1, {
+		wrapS: THREE.ClampToEdgeWrapping,
+		wrapT: THREE.ClampToEdgeWrapping,
+		format: THREE.RGBAFormat,
+		stencilBuffer: false,
+		depthBuffer: true
+	});
+
+}
+
+function readSVG( file ) {
+
+	return new Promise( function( resolve, reject ) {
+		var ajax = new XMLHttpRequest();
+		ajax.open("GET", "../assets/" + file, true);
+		ajax.send();
+		ajax.addEventListener( 'load', function(e) {
+			resolve( ajax.responseText );
+		} );
+	});
+
+}
+
+// SVGPathSegCurvetoCubicRel - bezier
+
+function drawSVG( source ) {
+
+	var lines = [];
+    var parser = new DOMParser();
+    var doc = parser.parseFromString( source, "image/svg+xml");
+
+    var pathNodes = doc.querySelectorAll('path');
+    [].forEach.call( pathNodes, function( p ) {
+
+    	if( p instanceof SVGPathElement && p.pathSegList ) {
+
+    		var line = new THREE.Geometry();
+    		var vertices = line.vertices;
+    		var x, y;
+    		var ox, oy;
+    		var px, py;
+
+            var segments = p.pathSegList;
+            for( var i = 0; i < segments.numberOfItems; i++ ) {
+
+                var segment = segments.getItem( i );
+
+                var types = [ SVGPathSegMovetoAbs, SVGPathSegLinetoRel, SVGPathSegLinetoVerticalRel, SVGPathSegLinetoHorizontalRel, SVGPathSegLinetoHorizontalAbs, SVGPathSegLinetoVerticalAbs, SVGPathSegClosePath, SVGPathSegLinetoAbs ];
+                var found = false;
+                types.forEach( function( t ) {
+                    if( segment instanceof t ) {
+                        found = true;
+                    }
+                } );
+                if( !found ) {
+                    console.log( segment );
+                }
+
+                if( segment instanceof SVGPathSegMovetoAbs ) {
+                    x = segment.x;
+                    y = segment.y;
+                    ox = x;
+                    oy = y;
+                    // add line;
+    				lines.push( line );
+    				line = new THREE.Geometry();
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                }
+                if( segment instanceof SVGPathSegLinetoRel ) {
+                    x = px + segment.x;
+                    y = py + segment.y;
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                }
+                if( segment instanceof SVGPathSegLinetoAbs ) {
+                    x = segment.x;
+                    y = segment.y;
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                }
+                if( segment instanceof SVGPathSegLinetoVerticalRel ) {
+                    x = px;
+                    y = py + segment.y;
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                }
+                if( segment instanceof SVGPathSegLinetoHorizontalRel ) {
+                    x = px + segment.x;
+                    y = py;
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                }
+                if( segment instanceof SVGPathSegLinetoHorizontalAbs ) {
+                    x = segment.x;
+                    y = py;
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                }
+                if( segment instanceof SVGPathSegLinetoVerticalAbs ) {
+                    x = px;
+                    y = segment.y;
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                }
+                if( segment instanceof SVGPathSegClosePath ) {
+                    x = ox;
+                    y = oy;
+                    line.vertices.push( new THREE.Vector3( x, y, 0 ) );
+                    // add line
+    				lines.push( line );
+    				line = new THREE.Geometry();
+                }
+
+                px = x;
+                py = y;
+
+            }
+
+    	}
+
+    } );
+
+    debugger;
+	lines.forEach( function( l ) {
+		makeLine( l );
+	})
+
+}
+
+
+function initScene() {
+
+	//readSVG( 'logo.svg' ).then( res => drawSVG( res ) );
+
+	wallTexture = new THREE.TextureLoader().load( '../assets/wall/light-test.jpg', function() {
+
+		var ambientLight = new THREE.AmbientLight( 0xffffff );
+		scene.add( ambientLight );
+
+		var directionalLight = new THREE.DirectionalLight( 0xffffff, 0.5 );
+		directionalLight.position.set( 0, 0, 1 );
+		scene.add( directionalLight );
+
+		/*var path = new THREE.Path( [
+			new THREE.Vector2( 0, 0 ),
+			new THREE.Vector2( 10, 10 )
+		] );*/
+		var curve = new THREE.CatmullRomCurve3( [
+			new THREE.Vector3( -10, 0, 10 ),
+			new THREE.Vector3( -5, 5, 5 ),
+			new THREE.Vector3( 0, 0, 0 ),
+			new THREE.Vector3( 5, -5, 5 ),
+			new THREE.Vector3( 10, 0, 10 )
+		] );
+
+		var geometry = new THREE.TubeGeometry( curve, 20, 2, 8, false );
+		var geometry2 = new THREE.TubeGeometry( curve, 20, 4, 8, false );
+
+		neon = new THREE.Mesh(
+			geometry,
+			new THREE.MeshStandardMaterial( {color: 0xff4f37, emissive: 0x101010, metalness: 0, roughness: 0 } )
+		);
+		scene.add( neon );
+
+		neon2 = new THREE.Mesh(
+		    geometry2,
+			new THREE.MeshBasicMaterial( {color: 0xff4f37 } )
+		);
+		neon2.scale.set( 2,2,2 );
+		scene.add( neon2 );
+
+		var cubeCamera = new THREE.CubeCamera( .01, 100, 1024 );
+		scene.add( cubeCamera );
+		cubeCamera.updateCubeMap( renderer, scene );
+		cubeCamera.position.z = -10;
+
+		projectionFBO = createRenderTarget();
+		projectionFBO.setSize( 128, 128 );
+		//projectionFBO.texture.minFilter = THREE.LinearFilter;
+		projectionFBO.texture.wrapS = projectionFBO.texture.wrapT = THREE.ClampToEdgeWrapping;
+
+		diffuseFBO = createRenderTarget();
+		diffuseFBO.setSize( 1024, 1024 );
+
+		projShader = new THREE.RawShaderMaterial({
+			uniforms: {
+				resolution: { type: 'v2', value: new THREE.Vector2( 128, 128 ) },
+				diffuseTexture: { type: 't', value: wallTexture },
+				projectionTexture: { type: 't', value: projectionFBO.texture }
+			},
+			vertexShader: document.getElementById( 'ortho-vs' ).textContent,
+			fragmentShader: document.getElementById( 'diffuse-fs' ).textContent
+		});
+
+		var w = 1024;
+		var h = 1024;
+
+		orthoScene = new THREE.Scene();
+		orthoCamera = new THREE.OrthographicCamera( w / - 2, w / 2, h / 2, h / - 2, .00001, 1000 );
+		orthoQuad = new THREE.Mesh( new THREE.PlaneBufferGeometry( w, h ), projShader );
+		orthoScene.add( orthoQuad );
+
+		projCamera = new THREE.PerspectiveCamera( 90, 1, .01, 400 );
+		projCamera.position.z = 100;
+		projCamera.lookAt( neon.position );
+
+		helper.attach( projectionFBO, 'projection' );
+		helper.attach( diffuseFBO, 'diffuse' );
+
+		wall = new THREE.Mesh(
+			new THREE.PlaneBufferGeometry( 100, 100 ),
+			new THREE.MeshStandardMaterial({
+				color: 0xffffff,
+				map: diffuseFBO.texture,
+				metalness: .5,
+				roughness: .5,
+				envMap: cubeCamera.renderTarget.texture,
+				metalnessMap: new THREE.TextureLoader().load( '../assets/wall/specular.png' ),
+				normalMap: new THREE.TextureLoader().load( '../assets/wall/normal.png' ),
+				bumpMap: new THREE.TextureLoader().load( '../assets/wall/height.png' )
+			})
+		)
+		wall.position.z = -20;
+		scene.add( wall );
+
+		updateLight();
+
+		animate();
+
+	} );
+
+}
+
+function updateLight() {
+
+	wall.visible = false;
+	neon.visible = false;
+	neon2.visible = true;
+
+	renderer.render( scene, projCamera, projectionFBO );
+	renderer.render( orthoScene, orthoCamera, diffuseFBO );
+
+	neon.visible = true;
+	neon2.visible = false;
+	wall.visible = true;
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 200 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	helper = new FBOHelper( renderer );
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+	helper.setSize( w, h );
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	renderer.render( scene, camera );
+	helper.update();
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
