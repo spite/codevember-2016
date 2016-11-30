@@ -128,12 +128,11 @@ void main() {
 	}
 
 	float intensity = texture2D( inputTexture, vUv ).r;
-	float level =floor( intensity * 9. ) / 10.;
+	float level = floor( intensity * 9. ) / 10.;
 	uv.x = uv.x / 10. + level;
 
 	gl_FragColor =  2. * intensity * texture2D( gradientMap, uv );
 	gl_FragColor.rgb *= vec3( 0., 169., 226. ) / 255.;
-//	gl_FragColor.rgb *= vec3( 0., 1., 0. );
 
 }
 </script>
