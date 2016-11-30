@@ -15,8 +15,16 @@
 		<div id="info" >
 			<p><a href="../24" >Previous</a> | <a href="../26" >Next</a></p>
 			<h1>25. Lines</h1>
+			<p>An experiment on regular lines and feedback effect.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>The first version of this effect was distorting the lines geometries in CPU, using ImprovedNoise. I moved the code to a shader.</p>
+				<p>The lines are distorted by calculating the 3D value of a perlin noise, and calculating the normal from the gradient in that point of the field. The vertices are pushed along that normal, creating inflated distortions.</p>
+				<p>The lines are rendered into a buffer that has a version of itself drawn on it, slightly upscaled and faded, to create the feedback effect.</p>
+				<p>A final pass applies FXAA, vignetting, noise and gamma correction.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by <a href="https://twitter.com/archillect/status/725678465022840833" >this image</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
