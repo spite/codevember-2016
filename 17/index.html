@@ -15,8 +15,17 @@
 		<div id="info" >
 			<p><a href="../16" >Previous</a> | <a href="../18" >Next</a></p>
 			<h1>17. Conway</h1>
+			<p>A GPGPU Conway's game of life, with PBR, shadows and AO.</p>
+			<p>If there are no cells, <span id="randomizeBtn" class="action" >click here to randomize</span>.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>The GPGPU Conway version uses ping-pong textures to run the simulation.</p>
+				<p>The current position texture is used to determine the state of the cell when drawing. Each cell is a box geometry merged into a bigger one.</p>
+				<p>The cell object is rendered with a Custom version of MeshStandardMaterial, adding the lookup to the nearby cells to determine the degree of ambient occlusion. The fragment shader then adds the AO term with the rest of the BRDF in the Physical material.</p>
+				<p><b>Credits</b></p>
+				<p>Heavily based on Iñigo Quílez's work on <a href="http://iquilezles.org/www/articles/voxellines/voxellines.htm" >Voxel Lines and Occlusion</a>.</p>
+				<p>Based on Matt DesLauriers's <a href="https://gist.github.com/mattdesl/034c5daf2cf5a01c458bc9584cbe6744" >Custom mesh standard material</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -622,6 +631,10 @@ function init() {
 
 	initScene();
 	onWindowResized();
+
+	document.getElementById( 'randomizeBtn' ).addEventListener( 'click', function( e ) {
+		simulation.randomize()
+	});
 
 	window.addEventListener( 'resize', onWindowResized );
 
