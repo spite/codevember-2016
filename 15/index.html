@@ -15,9 +15,17 @@
 		<div id="info" >
 			<p><a href="../14" >Previous</a> | <a href="../16" >Next</a></p>
 			<h1>15. Crystals</h1>
-			<p><span id="refreshBtn" class="action" >Generate a new one</span></p>
+			<p>Generated crystals, with a ton of postprocessing!</p>
+			<p>Press <b>space</b> or <span id="refreshBtn" class="action" >click here</span> to generate a new one!</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>The crystals are based on a base geometry that is distorted (more along the z-axis), displaced around a common center, merged together into a final geometry that has then all its vertices slightly jiggled.</p>
+				<p>There are two lights with random HSL colors, that cast shadow.</p>
+				<p>The whole scene is rendered to a color buffer, depth to a depth buffer, and both buffers mixed in a pass that performs Bokeh blur according to the distance.</p>
+				<p>A final pass performs FXAA, vignetting, color grading and noise.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by <a href="http://archillect.com/34483" >this image.</a></p>
+				<p>Amazing Bokeh shader from Dave_hosking <a href="https://www.shadertoy.com/view/4d2Xzw" >Bokeh disc</a> at Shadertoy.</p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -359,7 +367,7 @@ void main() {
 
 <script>
 
-// http://archillect.com/93970
+// http://archillect.com/34483
 // https://www.shadertoy.com/view/ldl3W8#
 
 'use strict';
@@ -564,6 +572,10 @@ function initScene() {
 
 		document.getElementById( 'refreshBtn' ).addEventListener( 'click', function( e ){
 			createMineral();
+		});
+
+		window.addEventListener( 'keydown', function( e ){
+			if( e.keyCode === 32 ) createMineral();
 		});
 
 	});
