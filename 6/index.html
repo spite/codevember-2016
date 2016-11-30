@@ -15,16 +15,23 @@
 		<div id="info" >
 			<p><a href="../5" >Previous</a> | <a href="../7" >Next</a></p>
 			<h1>6. Wobbly Earth</h1>
+			<p>Adding a custom vertex shader distortion keeping all the features of THREE.MeshStandardMaterial (PBR, shadows, etc).</p>
+			<p><b>Click</b> anywhere to <b>wobble</b>!</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+			<p>Using MeshCustomMaterial to build a material with custom vertex shader and the default physical fragment shader.</p>
+			<p>The distortion are several 3D perlin noise with different scales, added up, that move the vertex along the normal. The tangent and binormal are calculated with partial derivatives of the noise function, in the vertex shader; and the new normal calculated from the cross product.</p>
+			<p>Also using a ShaderMaterial to build a custom depth material so the shadows can reproduce the object's distortion.</p>
+			<p>The rest is all the MeshStandardMaterial rendering features.</p>
 			<p><b>Credits</b></p>
+			<p>Based on Matt DesLauriers's <a href="https://gist.github.com/mattdesl/034c5daf2cf5a01c458bc9584cbe6744" >Custom mesh standard material</a>.</p>
+			<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/kaimallea/isMobile" >isMobile.js</a> and <a href="https://github.com/spite/THREE.EquirectangularToCubemap" >EquirectangularToCubemap</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
-		<script src="../js/Maf.js"></script>
 		<script src="../js/MeshCustomMaterial.js"></script>
 		<script src="../js/EquirectangularToCubemap.js"></script>
 		<script src="../js/Common.js"></script>
@@ -377,10 +384,10 @@ void main() {
 		wireframe: !true,
 		roughness: .8,
 		metalness: .1,
-		//map: new THREE.TextureLoader().load( '../assets/world.topo.200412.3x5400x2700.jpg' ),
-		roughnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_gloss_4k.jpg' ),
-		metalnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse_4k.jpg' ),
-		bumpMap: new THREE.TextureLoader().load( '../assets/bathymetry_bw_composite_4k.jpg' ),
+		map: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse.jpg' ),
+		roughnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_gloss.jpg' ),
+		metalnessMap: new THREE.TextureLoader().load( '../assets/bathymetry_diffuse.jpg' ),
+		bumpMap: new THREE.TextureLoader().load( '../assets/bathymetry_bw_composite.jpg' ),
 	});
 
 	var depthMaterial = new THREE.ShaderMaterial( {
