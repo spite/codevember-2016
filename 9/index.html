@@ -15,12 +15,15 @@
 		<div id="info" >
 			<p><a href="../8" >Previous</a> | <a href="../10" >Next</a></p>
 			<h1>9. Street View PBR</h1>
+			<p>Modifying a MeshStandardMaterial trying to add Image Based Lighting (IBL).</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
-				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p>The idea was to modify the lighting equation to add a diffuse and specular term extracted from the equirectangular panorama fetched from Google Street View. It's still too complicated to modify the shader at that level.</p>
 				<p><b>Credits</b></p>
-				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+				<p>Based on Matt DesLauriers's <a href="https://gist.github.com/mattdesl/034c5daf2cf5a01c458bc9584cbe6744" >Custom mesh standard material</a>.</p>
+				<p>Textures by <a href="http://kay-vriend.blogspot.com.es/2012/09/slate-tiles-texture.html" >Käy Vriend</a></p>
+				<p>Inspired by <a href="https://twitter.com/archillect/status/797043706490720256" >this image</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, the Google Maps API, <a href="https://github.com/spite/PanomNom.js/" >PanomNom.js</a> and <a href="https://github.com/spite/THREE.EquirectangularToCubemap" >EquirectangularToCubemap</a>.</p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -260,6 +263,7 @@ vec3 panoSpecular = texture2D( panoMap, vUvDiffuse, 4. ).rgb;
 
 	var location = new google.maps.LatLng( 51.50700703827454 + Maf.randomInRange( -.1, .1 ) ,-0.12791916931155356 + Maf.randomInRange( -.1, .1 )  );
 	//location = new google.maps.LatLng( 41.3850639,2.1734034999999494);
+	location = new google.maps.LatLng( 61.6581287,9.6351752 );
 
 	var loader = new PANOMNOM.GoogleStreetViewLoader();
 
@@ -288,10 +292,10 @@ vec3 panoSpecular = texture2D( panoMap, vUvDiffuse, 4. ).rgb;
 				fragmentShader: fs,//THREE.ShaderChunk.meshphysical_frag,
 				metalness: .5,
 				roughness: 1,
-				map: new THREE.TextureLoader().load( '../assets/pattern_09/diffuse.png' ),
-				normalMap: new THREE.TextureLoader().load( '../assets/pattern_09/normal.png' ),
-				bumpMap: new THREE.TextureLoader().load( '../assets/pattern_09/height.png' ),
-				roughnessMap: new THREE.TextureLoader().load( '../assets/pattern_09/specular.png' ),
+				map: new THREE.TextureLoader().load( '../assets/pattern_09/diffuse.jpg' ),
+				normalMap: new THREE.TextureLoader().load( '../assets/pattern_09/normal.jpg' ),
+				bumpMap: new THREE.TextureLoader().load( '../assets/pattern_09/height.jpg' ),
+				roughnessMap: new THREE.TextureLoader().load( '../assets/pattern_09/specular.jpg' ),
 				envMap: panoTex
 			}
 		);
@@ -335,7 +339,7 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 20 );
+	camera.position.set( 0, 0, 35 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
@@ -350,6 +354,7 @@ function init() {
 	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	controls.noZoom = true;
 
 	onWindowResized();
 	window.addEventListener( 'resize', onWindowResized );
@@ -374,8 +379,8 @@ function animate() {
 	requestAnimationFrame( animate );
 
 	controls.update();
-//	mesh.rotation.y += .01;
-//	mesh.rotation.x += .001;
+	mesh.rotation.y += .01;
+	mesh.rotation.x += .001;
 
 	bkg.position.copy( camera.position );
 
