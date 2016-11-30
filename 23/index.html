@@ -15,6 +15,16 @@
 		<div id="info" >
 			<p><a href="../22" >Previous</a> | <a href="../24" >Next</a></p>
 			<h1>23. Emitter</h1>
+			<p>Toying with the spring-like strands, using Verlet integration and constrains to animate the strings.</p>
+			<p><b>Click on the plane</b> to push spheres around.</p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>Cannon.js is used for the physics simulation. Each spheres is linked with a Cannon.js body, and a set of points is randomly chosen from the surface of the sphere. Lines are attached to those points. When the simulation runs and modifies the spheres positions, the changes are translated to the random points, and those are used as anchors of the beginning of the string.</p>
+				<p>The rendering is pretty straightforward, with just MeshStandarMaterial and shadows.</p>
+				<p><b>Credits</b><p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, physics by <a href="http://www.cannonjs.org/" >cannon.js</a>, <a href="https://github.com/kaimallea/isMobile">isMobile.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
+				<p>
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -24,6 +34,8 @@
 		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/cannon.min.js"></script>
 		<script src="../js/GeometryUtils.js"></script>
+		<script src="../js/isMobile.min.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script>
 
@@ -31,7 +43,7 @@
 
 'use strict';
 
-var SPHERES = parseInt( window.location.hash.substr( 1 ), 10 ) || 40;
+var SPHERES = parseInt( window.location.hash.substr( 1 ), 10 ) || isMobile.any ? 10 : 40;
 
 var container, renderer, camera, controls, scene;
 var mesh, groundMesh;
@@ -58,9 +70,33 @@ var sphereMotionData = []
 var sphereColors = [];
 var sphereMeshes = [];
 var spherePoints = [];
+var sphereLines = [];
 
 var raycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
+
+function createLine() {
+
+	var points = 10;
+	var geometry = new THREE.BufferGeometry();
+	var positions = new Float32Array( points * 3 );
+	for( var j = 0, ptr = 0; j < points; j++, ptr += 3 ) {
+		positions[ ptr ] = 0;
+		positions[ ptr + 1 ] = .1 * j;
+		positions[ ptr + 2 ] = 0;
+	}
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	var line = new THREE.Line( geometry, new THREE.LineBasicMaterial() );
+	scene.add( line );
+	line.castShadow = true;
+
+	var points = new THREE.Points( geometry, new THREE.PointsMaterial( {size: .1 }) );
+	//scene.add( points );
+	points.castShadow = true;
+
+	return line;
+
+}
 
 function initScene() {
 
@@ -200,6 +236,12 @@ function initScene() {
 		points.position.set( sphere.x, sphere.y, sphere.z );
 		points.scale.set( sphere.w, sphere.w, sphere.w );
 
+		var lines = [];
+		for( var j = 0; j < pointsInGeometry.vertices.length; j++ ) {
+			lines.push( createLine() );
+		}
+		sphereLines.push( lines );
+
 		spherePoints.push( points );
 		scene.add( points );
 
@@ -281,7 +323,55 @@ function onWindowResized( event ) {
 
 }
 
+var p1 = new THREE.Vector3();
+var p2 = new THREE.Vector3();
+var dir = new THREE.Vector3();
+var inc = new THREE.Vector3();
+
+function updateLine( line, position ) {
+
+	var positions = line.geometry.attributes.position;
+	var data = positions.array;
+
+	var t = .001 * performance.now();
+	var desired = .1;
+
+	for( var j = 1, ptr = 3; j < positions.count; j++, ptr += 3 ){
+		p1.set( data[ ptr - 3 ], data[ ptr - 3 + 1 ], data[ ptr - 3 + 2 ] );
+		if( j === 1 ) {
+			p1.copy( position );
+		}
+		p2.set( data[ ptr ], data[ ptr + 1 ], data[ ptr + 2 ] );
+		dir.copy( p1 ).sub( p2 );
+		var d = dir.length();
+		dir.normalize();
+		var dif = desired - d;
+		inc.copy( dir );
+		inc.multiplyScalar( 1. * dif );
+		p1.add( inc );
+		p2.sub( inc );
+
+		p1.y -= .01;
+		p2.y -= .01;
+
+		if( j === 1 ) {
+			p1.copy( position );
+		}
+
+		data[ ptr - 3 ] = p1.x;
+		data[ ptr - 3 + 1 ] = p1.y;
+		data[ ptr - 3 + 2 ] = p1.z;
+		data[ ptr ] = p2.x;
+		data[ ptr + 1 ] = p2.y;
+		data[ ptr + 2 ] = p2.z;
+
+	}
+	positions.needsUpdate = true;
+
+}
+
 var lastTime = 0;
+var tmpPos = new THREE.Vector3();
 
 function animate() {
 
@@ -310,6 +400,15 @@ function animate() {
 		spherePoints[ id ].position.set( s.body.position.x, s.body.position.z, s.body.position.y );
 		spherePoints[ id ].quaternion.set( s.body.quaternion.x, s.body.quaternion.y, s.body.quaternion.z, s.body.quaternion.w );
 		spherePoints[ id ].scale.set( s.scale, s.scale, s.scale );
+
+		var s = spherePoints[ id ];
+		s.updateMatrixWorld();
+
+		sphereLines[ id ].forEach( function( line, k ) {
+			tmpPos.copy( s.geometry.vertices[ k ] );
+			tmpPos.applyMatrix4( s.matrixWorld );
+			updateLine( line, tmpPos );
+		})
 
 	} );
 
