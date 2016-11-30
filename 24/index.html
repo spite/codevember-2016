@@ -15,8 +15,20 @@
 		<div id="info" >
 			<p><a href="../23" >Previous</a> | <a href="../25" >Next</a></p>
 			<h1>24. AO Spheres</h1>
+			<p>A bunch of spheres that try to stay together -but not too together-, with soft shadows and ambient occlusion.</p>
+			<p>Move your mouse and the spheres will follow. Click so they separate, they'll group back when you release.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>This one is the result of testing a combination of techniques.</p>
+				<p>The sphere-sphere ambient occlusion is analytically found following Iñigo Quílez's <a href="http://www.iquilezles.org/www/articles/sphereao/sphereao.htm" >Sphere Ambient Occlusion</a>.</p>
+				<p>The soft shadows are part of the raymarching toolbox at <a href="http://shadertoy.com/">ShaderToy</a>.</p>
+				<p>The rendering combines solid color, some lambertian diffuse term, ao, soft shadows and rim lighting.</p>
+				<p>The motion is an ad-hoc steering behaviours that doesn't really work that well.</p>
+				<p>The spheres use a custom LOD system, based on BufferGeometry and a custom version of three.js</p>
+				<p>I changed the background from white to black because the lighting is already fake, so let's make it look different :)</p>
+				<p><b>Credits</b><p>
+				<p>Sphere AO code recycled from this old effect of mine <a href="https://www.clicktorelease.com/tmp/threejs/ao/boids/" >AO Boids</a> (the boids were much better there, but unfortunately they're not framerate independent)</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -292,14 +304,14 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 50 );
+	camera.position.set( 0, 0, 35 );
 	camera.lookAt( camera.target );
 	cameraDummy.add( camera );
 	scene.add( cameraDummy );
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0xffffff, 1 );
+	renderer.setClearColor( 0, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
