@@ -23,6 +23,8 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/GeometryUtils.js"></script>
+		<script src="../js/Common.js"></script>
+		<script src="../js/isMobile.min.js"></script>
 
 <script type="x-shader/x-vertex" id="ortho-vs" >
 precision highp float;
@@ -85,143 +87,72 @@ void main() {
 
 <script type="x-vertex/x-fragment" id="ssao-fs" >
 
-/// <summary>
-/// This fragment shader calculates the ambient occlusion contributions for each fragment.
-/// This shader requires:
-/// 1. View-space position buffer
-/// 2. View-space normal vector buffer
-/// 3. Normalmap to preturb the sampling kernel
-/// </summary>
+precision highp float;
 
-
-#ifdef GL_ES
-	precision highp float;
-#endif
-
-
-/// <summary>
-/// Texture samples used by this shader.
-/// <summary>
-uniform sampler2D Sample0;	// View space position data
-uniform sampler2D Sample1;	// View space normal vectors
-uniform sampler2D Sample2;	// Normalmap to randomize the sampling kernel
-vec2 TexelSize;
+uniform sampler2D positionTexture;
+uniform sampler2D normalTexture;
 uniform vec2 resolution;
+uniform float bias;
+uniform float radius;
+uniform vec2 attenuation;
 
-/// <summary>
-/// Occluder bias to minimize self-occlusion.
-/// <summary>
-uniform float OccluderBias;
-
-
-/// <summary>
-/// Specifies the size of the sampling radius.
-/// <summary>
-uniform float SamplingRadius;
-
-
-/// <summary>
-/// Ambient occlusion attenuation values.
-/// These parameters control the amount of AO calculated based on distance
-/// to the occluders. You need to play with them to find the right balance.
-///
-/// .x = constant attenuation. This is useful for removing self occlusion. When
-///		 set to zero or a low value, you will start to notice edges or wireframes
-///		 being shown. Typically use a value between 1.0 and 3.0.
-///
-///	.y = linear attenuation. This provides a linear distance falloff.
-/// .z = quadratic attenuation. Smoother falloff, but is not used in this shader.
-/// <summary>
-uniform vec2 Attenuation;
-
-
-/// <summary>
-/// Varying variables.
-/// <summary>
 varying vec2 vUv;
 
+float sampleBuffer( vec3 position, vec3 normal, vec2 uv) {
 
-/// <summary>
-/// Sample the ambient occlusion at the following UV coordinate.
-/// <summary>
-/// <param name="srcPosition">3D position of the source pixel being tested.</param>
-/// <param name="srcNormal">Normal of the source pixel being tested.</param>
-/// <param name="uv">UV coordinate to sample/test for ambient occlusion.</param>
-/// <returns>Ambient occlusion amount.</returns>
-float SamplePixels (vec3 srcPosition, vec3 srcNormal, vec2 uv)
-{
-	// Get the 3D position of the destination pixel
-	vec3 dstPosition = texture2D(Sample0, uv).xyz;
+	vec3 samplePosition = texture2D( positionTexture, uv ).xyz;
 
-	// Calculate ambient occlusion amount between these two points
-	// It is simular to diffuse lighting. Objects directly above the fragment cast
-	// the hardest shadow and objects closer to the horizon have minimal effect.
-	vec3 positionVec = dstPosition - srcPosition;
-	float intensity = max(dot(normalize(positionVec), srcNormal) - OccluderBias, 0.0);
+	vec3 dir = samplePosition - position;
+	float intensity = max( dot( normalize( dir ), normal ) - bias, 0.0 );
 
-	// Attenuate the occlusion, similar to how you attenuate a light source.
-	// The further the distance between points, the less effect AO has on the fragment.
-	float dist = length(positionVec);
-	float attenuation = 1.0 / (Attenuation.x + (Attenuation.y * dist));
+	float dist = length( dir );
+	float factor = 1.0 / ( attenuation.x + ( attenuation.y * dist ) );
 
-	return intensity * attenuation;
+	return intensity * factor;
 }
 
 float random(vec2 n, float offset ){
 	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
 }
 
-/// <summary>
-/// Fragment shader entry.
-/// <summary>
-void main ()
-{
-	TexelSize = 1. / resolution;
+#define M_PI 3.1415926535897932384626433832795
 
-	// Get position and normal vector for this fragment
-	vec3 srcPosition = texture2D(Sample0, vUv).xyz;
-	vec3 srcNormal = texture2D(Sample1, vUv).xyz;
-	//vec2 randVec = normalize(texture2D(Sample2, vUv).xy * 2.0 - 1.0);
+void main () {
+
+	vec2 inc = 1. / resolution;
+
+	vec3 position = texture2D( positionTexture, vUv ).xyz;
+	vec3 normal = texture2D( normalTexture, vUv ).xyz;
 	vec2 randVec = normalize( vec2( random( vUv, 234. ), random( vUv.yx, 43.2 ) ) );
-	float srcDepth = texture2D(Sample0, vUv).w;
 
-	// The following variable specifies how many pixels we skip over after each
-	// iteration in the ambient occlusion loop. We can't sample every pixel within
-	// the sphere of influence because that's too slow. We only need to sample
-	// some random pixels nearby to apprxomate the solution.
-	//
-	// Pixels far off in the distance will not sample as many pixels as those close up.
-	float kernelRadius = SamplingRadius * (1.0 - srcDepth);
+	float depth = texture2D( positionTexture, vUv).w;
 
-	// Sample neighbouring pixels
-	vec2 kernel[4];
-	kernel[0] = vec2(0.0, 1.0);	// top
-	kernel[1] = vec2(1.0, 0.0);	// right
-	kernel[2] = vec2(0.0, -1.0);	// bottom
-	kernel[3] = vec2(-1.0, 0.0);	// left
+	float kRadius = radius * ( 1.0 - depth );
 
-	const float Sin45 = 0.707107;	// 45 degrees = sin(PI / 4)
+	vec2 k[ 4 ];
+	k[ 0 ] = vec2(  0.0,  1.0 );
+	k[ 1 ] = vec2(  1.0,  0.0 );
+	k[ 2 ] = vec2(  0.0, -1.0 );
+	k[ 3 ] = vec2( -1.0,  0.0 );
 
-	// Sample from 16 pixels, which should be enough to appromixate a result. You can
-	// sample from more pixels, but it comes at the cost of performance.
+	const float v = M_PI / 4.;
+
 	float occlusion = 0.0;
-	for (int i = 0; i < 4; ++i)
-	{
-		vec2 k1 = reflect(kernel[i], randVec);
-		vec2 k2 = vec2(k1.x * Sin45 - k1.y * Sin45,
-				k1.x * Sin45 + k1.y * Sin45);
-		k1 *= TexelSize;
-		k2 *= TexelSize;
+	for( int i = 0; i < 4; ++i ){
 
-		occlusion += SamplePixels(srcPosition, srcNormal, vUv + k1 * kernelRadius);
-		occlusion += SamplePixels(srcPosition, srcNormal, vUv + k2 * kernelRadius * 0.75);
-		occlusion += SamplePixels(srcPosition, srcNormal, vUv + k1 * kernelRadius * 0.5);
-		occlusion += SamplePixels(srcPosition, srcNormal, vUv + k2 * kernelRadius * 0.25);
+		vec2 k1 = reflect( k[ i ], randVec );
+		vec2 k2 = vec2( k1.x * v - k1.y * v, k1.x * v + k1.y * v );
+		k1 *= inc;
+		k2 *= inc;
+
+		occlusion += sampleBuffer( position, normal, vUv + k1 * kRadius );
+		occlusion += sampleBuffer( position, normal, vUv + k2 * kRadius * 0.75 );
+		occlusion += sampleBuffer( position, normal, vUv + k1 * kRadius * 0.5 );
+		occlusion += sampleBuffer( position, normal, vUv + k2 * kRadius * 0.25 );
 	}
 
-	// Average and clamp ambient occlusion
 	occlusion /= 16.0;
-	occlusion = clamp(occlusion, 0.0, 1.0);
+	occlusion = clamp( occlusion, 0.0, 1.0 );
 
 	gl_FragColor = vec4( vec3( occlusion ), 1. );
 
@@ -327,7 +258,7 @@ void main() {
     color += vec4( vec3( amount * random( vUv, time ) ), 1. );
 
     float gamma = 1.2;
-    color.rgb = pow(color.rgb, vec3(1.0/gamma));
+   // color.rgb = pow(color.rgb, vec3(1.0/gamma));
 
     gl_FragColor = color;
 
@@ -336,6 +267,8 @@ void main() {
 </script>
 
 <script>
+
+// http://www.nutty.ca/?page_id=352&link=ssao
 
 'use strict';
 
@@ -379,13 +312,14 @@ function createFBO() {
 
 function initScene() {
 
-	var light = new THREE.HemisphereLight( 0x808080, 0, .5 );
+	var light = new THREE.HemisphereLight( 0x202020, 0, .5 );
 	scene.add( light );
 
-	var light1 = new THREE.SpotLight( 0xffffff, .5, 100, 1, .2, .1 );
-	light1.position.set( 5, 0, 14 );
+	var light1 = new THREE.SpotLight( 0xffffff, 1, 100, 1, .4, .1 );
+	light1.position.set( -10, 10, 10 );
 	light1.castShadow = true;
-	light1.shadow.mapSize.set( 1024, 1024 );
+	var size = isMobile.any ? 1024 : 1024;
+	light1.shadow.mapSize.set( size, size );
 	scene.add( light1 );
 
 	renderer.render( scene, camera );
@@ -405,6 +339,7 @@ function initScene() {
 	var material = new THREE.MeshStandardMaterial({
 		metalness: 0,
 		roughness: 1,
+		color: 0xffffff,
 		side: THREE.DoubleSide
 	});
 	var mesh = new THREE.Mesh( baseGeometry, material );
@@ -448,12 +383,12 @@ function initScene() {
 
 	ssaoShader = new THREE.RawShaderMaterial( {
 		uniforms: {
-			Sample0: { type: 't', value: positionFBO.texture },
-			Sample1: { type: 't', value: normalFBO.texture },
+			 positionTexture: { type: 't', value: positionFBO.texture },
+			normalTexture: { type: 't', value: normalFBO.texture },
 			resolution: { type: 'v2', value: resolution },
-			OccluderBias: { type: 'f', value: 0.05 },
-			SamplingRadius: { type: 'f', value: 20 },
-			Attenuation: { type: 'v2', value: new THREE.Vector2( 1, 1 ) }
+			bias: { type: 'f', value: 0.05 },
+			radius: { type: 'f', value: 20 },
+			attenuation: { type: 'v2', value: new THREE.Vector2( 1, 5 ) }
 		},
 		vertexShader: document.getElementById('ortho-vs').textContent,
 		fragmentShader: document.getElementById('ssao-fs').textContent,
@@ -496,6 +431,8 @@ function init() {
 
 	scene = new THREE.Scene();
 
+	scene.fog = new THREE.FogExp2( 0, .025 );
+
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 100 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
 	camera.position.set( 0, 0, 20 );
@@ -503,7 +440,7 @@ function init() {
 	scene.add( camera );
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
-	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setPixelRatio( isMobile.any ? 1 : window.devicePixelRatio );
 	renderer.setClearColor( 0, 1 );
 	container.appendChild( renderer.domElement );
 
@@ -535,8 +472,9 @@ function onWindowResized( event ) {
 	var dPR = renderer.getPixelRatio();
 	resolution.set( w * dPR, h * dPR );
 
-	var sW = Maf.nextPowerOfTwo( w ) / 2;
-	var sH = Maf.nextPowerOfTwo( h ) / 2;
+	var scale = isMobile.any ? 4 : 2;
+	var sW = Maf.nextPowerOfTwo( w ) / scale;
+	var sH = Maf.nextPowerOfTwo( h ) / scale;
 
 	colorFBO.setSize( w * dPR, h * dPR );
 	positionFBO.setSize( sW, sH );
