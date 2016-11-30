@@ -15,6 +15,14 @@
 		<div id="info" >
 			<p><a href="../27" >Previous</a> | <a href="../29" >Next</a></p>
 			<h1>28. Greeble AO</h1>
+			<p>A greebled torus, with AO. Chevron one encoded!</p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>This SSAO is based on Nutty Software <a href="http://www.nutty.ca/?page_id=352&link=ssao">SSAO demo</a>.</p>
+				<p>The segments are independent geometries, built from bent box geometries. I tried cylinders using the theta parameter, but the resulting meshes are no capped.</p>
+				<p>The main shader creates a color buffer, an eye-space normal buffer and an eye-space position buffer. The SSAO shader takes normal and position and creates an occlusion buffer. A shader combines the color and the ao, and a final shader performs FXAA, vignetting and noise.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/kaimallea/isMobile">isMobile.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -117,6 +125,22 @@ float random(vec2 n, float offset ){
 
 #define M_PI 3.1415926535897932384626433832795
 
+float hash( float n )//->0:1
+{
+	return fract(sin(n)*3538.5453);
+}
+vec3 randomSphereDir(vec2 rnd)
+{
+	float s = rnd.x*M_PI*2.;
+	float t = rnd.y*2.-1.;
+	return vec3(sin(s), cos(s), t) / sqrt(1.0 + t * t);
+}
+vec3 randomHemisphereDir(vec3 dir, float i)
+{
+	vec3 v = randomSphereDir( vec2(hash(i+1.), hash(i+2.)) );
+	return v * sign(dot(v, dir));
+}
+
 void main () {
 
 	vec2 inc = 1. / resolution;
@@ -168,6 +192,24 @@ uniform sampler2D aoTexture;
 
 varying vec2 vUv;
 
+vec3 rgb2hsv(vec3 c) {
+
+	vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+	vec4 p = c.g < c.b ? vec4(c.bg, K.wz) : vec4(c.gb, K.xy);
+	vec4 q = c.r < p.x ? vec4(p.xyw, c.r) : vec4(c.r, p.yzx);
+
+	float d = q.x - min(q.w, q.y);
+	float e = 1.0e-10;
+	return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+vec3 hsv2rgb(vec3 c) {
+	vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+	vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+	return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+
 void main() {
 
 	vec3 color = texture2D(colorTexture, vUv).xyz;
@@ -175,10 +217,15 @@ void main() {
 
 	color = clamp(color - ao * length( color ), 0.0, 1.0);
 
-	gl_FragColor.xyz = pow(color, vec3(1.0 / 2.2));
-	gl_FragColor.w = 1.0;
+	/*vec3 hsv = rgb2hsv( color );
+	hsv.z *= 1. - ao * length( color );
+	color = hsv2rgb( hsv );*/
 
-	//gl_FragColor= vec4( vec3(1. - ao ),1. );
+	gl_FragColor = vec4( color, 1. );
+
+	//gl_FragColor.xyz = pow(color, vec3(1.0 / 2.2));
+	//gl_FragColor.w = 1.0;
+
 }
 </script>
 
@@ -250,14 +297,16 @@ void main() {
     }
 
     vec2 position = ( gl_FragCoord.xy / resolution ) - .5;
-	float vignette = length( position );
+    float vignette = length( position );
     vignette = boost - vignette * reduction;
 
     color.rgb *= vignette;
 
+	//float gamma = 2.2;
+    //color.rgb = pow(color.rgb, vec3(1.0/gamma));
+
     color += vec4( vec3( amount * random( vUv, time ) ), 1. );
 
-    float gamma = 1.2;
    // color.rgb = pow(color.rgb, vec3(1.0/gamma));
 
     gl_FragColor = color;
@@ -280,6 +329,7 @@ var colorFBO, normalFBO, positionFBO, ssaoFBO, combinedFBO;
 var resolution = new THREE.Vector2();
 var ssaoShader, bufferMaterial, combineShader, finalShader;
 var meshes = [];
+var world = new THREE.Object3D();
 
 var helper;
 
@@ -299,28 +349,70 @@ function createRenderTarget() {
 
 function createFBO() {
 
+	var type = THREE.FloatType;
+	if( renderer.extensions.get( 'OES_texture_float_linear' ) === null ) type = THREE.HalfFloatType;
+
 	return new THREE.WebGLRenderTarget( 1, 1, {
 		wrapS: THREE.ClampToEdgeWrapping,
 		wrapT: THREE.ClampToEdgeWrapping,
 		format: THREE.RGBAFormat,
-		type: THREE.HalfFloatType,
+		type: type,
 		stencilBuffer: false,
 		depthBuffer: true
 	});
 
 }
 
+function createArcGeometry( start, length, r ){
+
+	var segments = isMobile.any ? 10 : 15;
+	var d = r * length;
+	var height = Maf.randomInRange( .5, 1.5 );
+	var depth = Maf.randomInRange( .5, 1.5 );
+
+	var boxGeometry = new THREE.BoxBufferGeometry( d, height, depth, ~~( d * segments ), 1, 1 );
+	var data = boxGeometry.attributes.position.array;
+	for( var j = 0; j < data.length; j += 3 ) {
+		var x = data[ j ];
+		var y = data[ j + 1 ];
+		var z = data[ j + 2 ];
+		data[ j ] = ( r - z ) * Math.cos( start + x );
+		data[ j + 2 ] = ( r - z ) * Math.sin( start + x );
+	}
+	boxGeometry.computeVertexNormals();
+	boxGeometry.computeFaceNormals();
+
+	return boxGeometry;
+
+}
+
+var colors = [
+	0xdb3340,
+	0xf2e394,
+	0xa7dbdb,
+	0xff8a35,
+];
+
 function initScene() {
 
-	var light = new THREE.HemisphereLight( 0x202020, 0, .5 );
+	scene.add( world );
+
+	var light = new THREE.HemisphereLight( 0xb70000, 0, 1 );
 	scene.add( light );
 
-	var light1 = new THREE.SpotLight( 0xffffff, 1, 100, 1, .4, .1 );
+	var light1 = new THREE.SpotLight( 0xffffff, 2, 100, .75, .4, .1 );
 	light1.position.set( -10, 10, 10 );
 	light1.castShadow = true;
 	var size = isMobile.any ? 1024 : 1024;
 	light1.shadow.mapSize.set( size, size );
 	scene.add( light1 );
+
+	var light2 = new THREE.SpotLight( 0xffffff, 2, 100, .75, .4, .1 );
+	light2.position.set( 10, 10, 10 );
+	light2.castShadow = true;
+	var size = isMobile.any ? 1024 : 1024;
+	light2.shadow.mapSize.set( size, size );
+	scene.add( light2 );
 
 	renderer.render( scene, camera );
 	helper.attach( light1.shadow.map, 'light1' );
@@ -335,7 +427,49 @@ function initScene() {
 		transparent: !true
 	} );
 
-	var baseGeometry = new THREE.TorusBufferGeometry( 10, 3, 200, 36 );
+	var r = 10;
+	var points = [
+		new THREE.Vector2( r - 1, -1 ),
+		new THREE.Vector2( r + 1, -1 ),
+		new THREE.Vector2( r + 1,  1 ),
+		new THREE.Vector2( r - 1,  1 ),
+		new THREE.Vector2( r - 1, -1 ),
+	]
+	var geometry = new THREE.LatheBufferGeometry( points, 100 );
+	var lathe = new THREE.Mesh( geometry, material );
+	//world.add( lathe );
+	lathe.castShadow = lathe.receiveShadow = true;
+
+	var pieces = isMobile.any ? 100 : 200;
+	for( var j =0 ; j < pieces; j++ ) {
+
+		var material = new THREE.MeshStandardMaterial( {
+			color: colors[ ~~( Math.random() * colors.length ) ],
+			roughness: .8,
+			metalness: .1,
+			wireframe: !true
+		} );
+
+		var start = Maf.randomInRange( 0, 2 * Math.PI );
+		var length = Maf.randomInRange( .01, .05 );
+		var geometry = createArcGeometry( start, length, 10 );
+		var lathe = new THREE.Mesh( geometry, material );
+		world.add( lathe );
+		lathe.rotation.y = Maf.randomInRange( 0, 2 * Math.PI );
+		var s1 = Maf.randomInRange( .85, 1.5 );
+		var s2 = Maf.randomInRange( .1, 1 );
+		lathe.scale.set( s1, s2, s1 );
+		lathe.position.y = Maf.randomInRange( -.75, .75 );
+		lathe.castShadow = lathe.receiveShadow = true;
+
+		meshes.push( { mesh: lathe, speed: Maf.randomInRange( 1, 2 ) } );
+
+	}
+
+	world.rotation.x = Math.PI / 2;
+
+/*
+	var baseGeometry = new THREE.TorusBufferGeometry( 10, 3, 4, 4 );
 	var material = new THREE.MeshStandardMaterial({
 		metalness: 0,
 		roughness: 1,
@@ -343,7 +477,7 @@ function initScene() {
 		side: THREE.DoubleSide
 	});
 	var mesh = new THREE.Mesh( baseGeometry, material );
-	//scene.add( mesh );
+	scene.add( mesh );
 	mesh.castShadow = mesh.receiveShadow = true;
 
 	var boxGeometry = new THREE.BoxBufferGeometry( 1,1,1 );
@@ -363,9 +497,9 @@ function initScene() {
 		)
 		scene.add( mesh );
 		mesh.castShadow = mesh.receiveShadow = true;
-		meshes.push( mesh );
+		MeshStandardMaterial.push( mesh );
 	});
-
+*/
 	colorFBO = createFBO();
 	positionFBO = createFBO();
 	normalFBO = createFBO();
@@ -448,8 +582,11 @@ function init() {
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
 	helper = new FBOHelper( renderer );
+	helper.show( false );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	initScene();
 	onWindowResized();
@@ -472,7 +609,7 @@ function onWindowResized( event ) {
 	var dPR = renderer.getPixelRatio();
 	resolution.set( w * dPR, h * dPR );
 
-	var scale = isMobile.any ? 4 : 2;
+	var scale = isMobile.any ? 4 : 4;
 	var sW = Maf.nextPowerOfTwo( w ) / scale;
 	var sH = Maf.nextPowerOfTwo( h ) / scale;
 
@@ -492,7 +629,7 @@ function animate() {
 
 	controls.update();
 
-	meshes.forEach( function( m ) { m.rotation.y += .01 } );
+	meshes.forEach( function( m ) { m.mesh.rotation.y += .005 * m.speed; } );
 
 	scene.overrideMaterial = null;
 	renderer.render( scene, camera, colorFBO );
