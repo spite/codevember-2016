@@ -15,12 +15,15 @@
 		<div id="info" >
 			<p><a href="../17" >Previous</a> | <a href="../19" >Next</a></p>
 			<h1>18. Starfield</h1>
+			<p>Another version of oldschool cracktro starfields.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
-				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p>The stars are icosahedron geometries, all merged together in its final position. Colors are vertex color based.</p>
+				<p>The direction of movement is calculated using the previous frame's transformation matrices and the current frame's. The star geometry is the elongated along the motion direction (like in <a href="../5">Particle Field</a>).</p>
+				<p>Everything is rendered to a color buffer, glow is applied via a shader (using the mipmaps technique) and finally FXAA and vignette is applied.</p>
 				<p><b>Credits</b></p>
-				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+				<p>Galaxy texture from <a href="https://github.com/sirxemic/Interstellar" >sirxemic</a></p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/kaimallea/isMobile" >isMobile.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -391,7 +394,7 @@ function initScene() {
 
 	var bkg = new THREE.Mesh(
 		new THREE.IcosahedronBufferGeometry( 2000, 3 ),
-		new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( '../assets/space.png' ), side: THREE.BackSide, transparent: true, opacity: .1 } )
+		new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( '../assets/space.jpg' ), side: THREE.BackSide, transparent: true, opacity: .1 } )
 	);
 	scene.add( bkg );
 
