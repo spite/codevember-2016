@@ -489,7 +489,11 @@ void main() {
 	if( preBlurred == 1. ) {
 		color = mix( texture2D( inputTexture, vUv ), texture2D( blurredTexture, vUv ), depth );
 	} else {
-		color = poissonSample( inputTexture, vUv, depth * 16. );
+		if( depth > .25 ) {
+			color = poissonSample( inputTexture, vUv, depth * 16. );
+		} else {
+			color = texture2D( inputTexture, vUv );
+		}
 	}
 
 	gl_FragColor = color;
