@@ -37,37 +37,14 @@ OdeoSoundCloudPlayer.prototype.getSong = function( songURL ) {
 
 		this.songSource.connect( this.odeo.analyser );
 		this.songSource.connect( this.odeo.context.destination );
-		//songPanel.classList.remove( 'hidden' );
-
-		/*document.getElementById( 'pauseBtn' ).addEventListener( 'click', function( e ) {
-			if( audio.paused ) {
-				this.textContent = 'PAUSE';
-				audio.play();
-			} else {
-				this.textContent = 'PLAY';
-				audio.pause();
-			}
-			e.preventDefault();
-		});
-
-		var baseUrl = 'https://www.clicktorelease.com/code/pumpkin-jam'
-		var url = baseUrl + '#p=' + PUMPKINS + '&u=' + encodeURIComponent( songURL );
-		shareFacebookBtn.onclick = function( e ) {
-
-			window.open( 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent( url ), 'facebook-share-dialog', 'width=626,height=436');
-			return false;
-		}
-
-		shareTwitterBtn.onclick = function( e ) {
-
-			var msg = 'This is my pumpkin jam! ' + url;
-			window.open( 'https://twitter.com/intent/tweet?original_referer=' + encodeURIComponent( url ) + '&text=' + encodeURIComponent( msg ), 'twitter-share-dialog', 'width=626,height=436');
-			return false;
-		}
-
-		requestAnimationFrame( start );*/
 
 	}.bind( this ) );
+
+}
+
+OdeoSoundCloudPlayer.prototype.stop = function() {
+
+	this.audio.pause();
 
 }
 
@@ -98,6 +75,12 @@ OdeoMicrophone.prototype.play = function() {
 
 }
 
+OdeoMicrophone.prototype.stop = function() {
+
+	this.microphone.disconnect( this.odeo.analyser );
+
+}
+
 function Odeo( opts ){
 
 	this.options = opts || {};
@@ -125,10 +108,24 @@ Odeo.prototype.useMicrophone = function() {
 
 }
 
+Odeo.prototype.stopUsingMicrophone = function() {
+
+	if( !this.microphone ) return;
+	this.microphone.stop();
+
+}
+
 Odeo.prototype.playSoundCloud = function( url ) {
 
 	if( !this.soundCloudPlayer ) this.soundCloudPlayer = new OdeoSoundCloudPlayer( this.options.soundCloudId, this );
 	this.soundCloudPlayer.getSong( url );
+
+}
+
+Odeo.prototype.stopSoundCloud = function( url ) {
+
+	if( !this.soundCloudPlayer ) return;
+	this.soundCloudPlayer.stop();
 
 }
 
