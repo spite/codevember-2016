@@ -6,15 +6,18 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
 
 		<div id="container"></div>
 		<div id="info" >
-			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
+			<p><a href="../24" >Previous</a> | <a href="../26" >Next</a></p>
 			<h1>25. Lines</h1>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -22,7 +25,8 @@
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
-		<script src="../js/ImprovedNoise.js"></script>
+		<!--<script src="../js/ImprovedNoise.js"></script>-->
+		<script src="../js/Common.js"></script>
 
 <script type="x-shader/x-vertex" id="line-vs" >
 precision highp float;
@@ -524,7 +528,7 @@ void main() {
 var container, renderer, camera, controls, scene;
 var mesh;
 var line, lines = [], plane;
-var n = new ImprovedNoise();
+//var n = new ImprovedNoise();
 var baseFBO, targets = [], targetPtr = 0;
 var resolution = new THREE.Vector2();
 var orthoQuad, orthoCamera, orthoScene;
@@ -749,8 +753,12 @@ function init() {
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
 	helper = new FBOHelper( renderer );
+	helper.show( false );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	controls.zoomSpeed = 1.;
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	initScene();
 	onWindowResized();
