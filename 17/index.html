@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -14,7 +14,10 @@
 		<div id="container"></div>
 		<div id="info" >
 			<p><a href="../16" >Previous</a> | <a href="../18" >Next</a></p>
-			<h1>16. Conway</h1>
+			<h1>17. Conway</h1>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -23,6 +26,7 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="../js/MeshCustomMaterial.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script id="conway-vs" type="x-shader/x-vertex">
 
@@ -613,6 +617,8 @@ function init() {
 	controls.noZoom = true;
 
 	helper = new FBOHelper( renderer );
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	initScene();
 	onWindowResized();
