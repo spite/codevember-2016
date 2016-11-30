@@ -100,3 +100,6 @@ background: none;}
 .fullscreen-button{
 	position: absolute; right: 20px; bottom: 20px; border: 1px solid white; z-index: 1000; width: 28px; height: 28px; cursor: pointer; text-align: center; line-height: 24px
 }
+.code{
+	font-family: "courier new", courier; color: green; padding: 5px;
+}
