@@ -20,7 +20,8 @@
 		<p><span id="toggleBtn" class="action" >Toggle camera</span> or press <b>Space</b></p>
 		<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>All points are GL_POINTS, using distance to the center and discard to make the look like dots. There are two buffers, one for vertices and another for colors. Whether there's a dot or no is decided by looking up a mask image loaded in a canvas. The color of the dot is also read from a diffuse texture (earth and clouds), also loaded in their respective canvases. The position of the dot is displaced in the normal direction based on a lookup of a heightmap texture.</p>
+				<p>All points are GL_POINTS, using distance to the center and discard to make the look like dots.</p>>
+				<p>There are two buffers, one for vertices and another for colors. Whether there's a dot or not is decided by looking up a mask image loaded in a canvas. The color of the dot is also read from a color texture (earth and clouds), also loaded in their respective canvases. The position of the dot is displaced in the normal direction based on a lookup of a heightmap texture.</p>
 				<p>All images are equirectngular panoramas so can be mapped into a sphere. UV spherical coordinates from the sphere surface need to be adapted to be lookup 2D coordinates for the equirectangular panoramas.</p>
 				<p>All geometry is drawn in a single draw call.</p>
 				<p><b>Credits</b></p>
@@ -96,7 +97,7 @@
 
 var container, renderer, camera, controls, scene;
 var mesh, dummy = new THREE.Object3D();
-var cameraType = 0, cameraDummy = new THREE.Object3D();
+var cameraType = isMobile.any ? 1 : 0, cameraDummy = new THREE.Object3D();
 
 var helper;
 
@@ -261,6 +262,20 @@ function processImage( mask, color ) {
 
 }
 
+function changeCameraType() {
+
+	if( cameraType === 0 ) {
+		cameraDummy.position.set( 0,0,0 );
+		cameraDummy.rotation.set( 0,0,0 );
+		camera.position.z = 125;
+	} else {
+		cameraDummy.position.set( 61.01643532501035, -16.024913002353067, 85.53842635074523 );
+		cameraDummy.rotation.set( 0, 1.9, 1.6 );
+		camera.position.z = 1;
+	}
+
+}
+
 function init() {
 
 	container = document.getElementById( 'container' );
@@ -272,6 +287,7 @@ function init() {
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
 	camera.position.set( 0, 0, 125 );
 	cameraDummy.add( camera );
+	changeCameraType();
 
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
@@ -294,17 +310,9 @@ function init() {
 	onWindowResized();
 
 	document.getElementById( 'toggleBtn' ).addEventListener( 'click', function( e ) {
-		cameraType = 1 - cameraType;
 
-		if( cameraType === 0 ) {
-			cameraDummy.position.set( 0,0,0 );
-			cameraDummy.rotation.set( 0,0,0 );
-			camera.position.z = 125;
-		} else {
-			cameraDummy.position.set( 61.01643532501035, -16.024913002353067, 85.53842635074523 );
-			cameraDummy.rotation.set( 0, 1.9, 1.6 );
-			camera.position.z = 1;
-		}
+		cameraType = 1 - cameraType;
+		changeCameraType();
 
 	});
 
