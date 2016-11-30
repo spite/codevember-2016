@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -15,6 +15,15 @@
 		<div id="info" >
 			<p><a href="../12" >Previous</a> | <a href="../14" >Next</a></p>
 			<h1>13. Sphere Impostor</h1>
+			<p>Experiment creating sphere impostors out of particles, rendered with MeshStandardMaterial.</p>
+			<p>The big sphere in the center is an actual sphere geometry. The rest are billboarded triangles.</p>
+			<p>I got the lighting right, but I couldn't get the shadows to work properly. This needs more time to investigate!</p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p><b>Credits</b></p>
+				<p>Based on Matt DesLauriers's <a href="https://gist.github.com/mattdesl/034c5daf2cf5a01c458bc9584cbe6744" >Custom mesh standard material</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/kaimallea/isMobile" >isMobile.js</a> and <a href="https://github.com/spite/THREE.EquirectangularToCubemap" >EquirectangularToCubemap</a></p>
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -23,6 +32,7 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/MeshCustomMaterial.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script id="particle-vs" type="x-shader/x-vertex">
 precision highp float;
@@ -111,18 +121,18 @@ function initScene() {
 
 	var light1 = new THREE.SpotLight( 0x808080, .5, 100, .25, .2, .1 );
 	light1.position.set( 0, 40, 0 );
-	light1.castShadow = true;
+	//light1.castShadow = true;
 	light1.shadow.mapSize.width = light1.shadow.mapSize.height = 1024;
 	scene.add( light1 );
 
 	var light2 = new THREE.SpotLight( 0x808080, .5, 100, .5, .2, .1 );
 	light2.position.set( -10, 20, 4 );
-	light2.castShadow = true;
+	//light2.castShadow = true;
 	light2.shadow.mapSize.width = light2.shadow.mapSize.height = 1024;
-	//scene.add( light2 );
+	scene.add( light2 );
 
-	renderer.render( scene, camera );
-	helper.attach( light1.shadow.map, 'light1' );
+	//renderer.render( scene, camera );
+	//helper.attach( light1.shadow.map, 'light1' );
 	//helper.attach( light2.shadow.map, 'light2' );
 
 	var particles = 2000;
@@ -511,9 +521,12 @@ function init() {
 
 	window.addEventListener( 'resize', onWindowResized );
 
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
+
 	//animate();
 
 	controls.addEventListener( 'change', render );
+	render();
 
 }
 
