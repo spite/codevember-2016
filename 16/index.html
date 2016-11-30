@@ -15,9 +15,17 @@
 		<div id="info" >
 			<p><a href="../15" >Previous</a> | <a href="../17" >Next</a></p>
 			<h1>16. Torus</h1>
-			<p><a href="#" id="playBtn">Play</a></p>
+			<p>Another visualisation using Odeo.js, inspired by phosphor oscilloscopes.</p>
+			<p><span class="action" id="playBtn">Play</span> | <span class="action" id="micBtn">Use microphone</span></p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>Odeo.js exports the frequency spectrum data to a texture. It's then added into a tall buffer and a shader move each row downwards, drawing the new frequency buffer at the top.</p>
+				<p>That texture is then used to distort a series of lines. The lines are distored following a sinusoidal shape with frequency varying with the sound. The actual values of frequency in the buffer are displacement of the lines on the normal direction (the normal vector for the sinusoidal shape is calculated on the shader).</p>
+				<p>Everything is drawn to a color buffer, and then a glow pass is performed (using different levels of mipmaps to avoid blurring), color and glow are combined, a tilt-shift effect is performed and a final pass performing FXAA, and adding vignette, interlacing and oscilloscope grid.</p>
+				<p><b>Credits</b></p>
+				<p>Originally it was supposed to be like <a href="http://archillect.com/29720">this image</a></p>
+				<p>Song is <a href="https://soundcloud.com/hunz/neon" >Neon</a> by hunz</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, the SoundCloud API and Odeo.js</p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -405,19 +413,19 @@ var helper;
 var container = document.getElementById( 'container' );
 
 var odeo = new Odeo( {
-	soundCloudId: 'b1275b704badf79d972d51aa4b92ea15',
-	fftSize: 128
+	soundCloudId: 'b1275b704badf79d972d51aa4b92ea15'
 } );
 document.getElementById( 'playBtn' ).addEventListener( 'click', function( e ) {
+	odeo.stopUsingMicrophone();
 	odeo.playSoundCloud( 'https://soundcloud.com/hunz/neon' );
-	//odeo.useMicrophone();
 	e.preventDefault();
 })
-//odeo.useMicrophone();
+document.getElementById( 'micBtn' ).addEventListener( 'click', function( e ) {
+	odeo.stopSoundCloud();
+	odeo.useMicrophone();
+	e.preventDefault();
+})
 odeo.playSoundCloud( 'https://soundcloud.com/hunz/neon' );
-//odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
-//odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
-//odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
 
 var spectrumTexture = odeo.getSpectrumTexture();
 
