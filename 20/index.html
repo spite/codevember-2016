@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -15,13 +15,20 @@
 		<div id="info" >
 			<p><a href="../19" >Previous</a> | <a href="../21" >Next</a></p>
 			<h1>20. Lines on a Sphere</h1>
+			<p><span id="toggleStreakBtn" class="action">Toggle streak size</span> | <span id="toggleCamBtn" class="action">Toggle camera position</span></p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/DeviceOrientationControls.js"></script>
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/Common.js"></script>
+		<script src="../js/isMobile.min.js"></script>
 
 <script type="x-shader/x-vertex" id="clear-vs">
 precision highp float;
@@ -101,7 +108,8 @@ void main() {
 
 	p.xyz = vec3( vec2( x, y ) * dimensions, 0. );
 
-	gl_PointSize = .1 * dimensions.x / 4096. * c.a;
+	gl_PointSize = .5 * dimensions.x / 4096.;// * c.a;
+	gl_PointSize = ( c.a / 100. ) * dimensions.x / 500.;
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1. );
 
 }
@@ -151,7 +159,7 @@ precision highp float;
 
 void main() {
 
-	gl_FragColor = vec4( 1. );
+	gl_FragColor = vec4( 1., 0., 1., 1. );
 }
 
 </script>
@@ -316,8 +324,8 @@ function createRenderTarget() {
 
 function initScene() {
 
-	var width = 256;
-	var height = 256;
+	var width = isMobile.any ? 128 : 256;
+	var height = isMobile.any ? 128 : 256;
 
 	var data = new Float32Array( width * height * 4 );
 
@@ -493,7 +501,9 @@ function initScene() {
 			metalnessMap: tex,
 			bumpMap: tex,
 			roughness: .5,
-			metalness: 0
+			metalness: 0,
+			transparent: !true,
+			side: THREE.DoubleSide
 		})
 	);
 	scene.add( sphere );
@@ -508,7 +518,6 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 200 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
@@ -523,7 +532,16 @@ function init() {
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
-	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	if( isMobile.any ) {
+		camera.position.set( 0, 0, 0 );
+		controls = new THREE.DeviceOrientationControls( camera );
+	} else {
+		camera.position.set( 0, 0, 90 );
+		controls = new THREE.OrbitControls( camera, renderer.domElement );
+		controls.noZoom = true;
+	}
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	initScene();
 	onWindowResized();
