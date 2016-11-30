@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Skeletal</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../10" >Previous</a> | <a href="../12" >Next</a></p>
+			<h1>5. Skeletal</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/THREE.ShaderTexture.js"></script>
+		<script src="../js/Walker.js"></script>
+		<script src="../js/Boids.js"></script>
+
+<script type="x-shader/x-vertex" id="particles-vs" >
+precision highp float;
+
+attribute vec3 position;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec3 vColor;
+
+void main() {
+
+	vColor = vec3( 1. );
+
+	vec3 p = position;
+	vec4 mvPosition = modelViewMatrix * vec4( p, 1.0 );
+    gl_PointSize = 1. * ( 300.0 / length( mvPosition.xyz ) );
+
+	gl_Position = projectionMatrix * mvPosition;
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="particles-fs" >
+precision highp float;
+
+varying vec3 vColor;
+
+void main() {
+
+	float d = 1. - 2. * length( .5 - gl_PointCoord );
+	float a = smoothstep( 0., .1, d );
+	if( a <= 0. ) discard;
+	gl_FragColor = vec4( vColor * ( .75 + .25 * d ), 1. );
+
+}
+</script>
+
+<script>
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+var attractors = [[
+	Infinity, // x
+	Infinity, // y
+	150, // dist
+	0.25, // spd
+]];
+
+var boids = new Boids({
+	boids: 400,
+	attractors: []//attractors
+});
+
+var meshes = []
+
+function initScene() {
+
+	var indices_array = [ 0, 1, 1, 2, 2, 3, 3, 4, 1, 5, 5, 6, 6, 7, 1, 8, 8, 9, 9, 10, 10, 11, 8, 12, 12, 13, 13, 14 ];
+	var material = new THREE.LineBasicMaterial( { color: 0xffffff } );
+
+	for( var j = 0; j < boids.boids.length; j++ ) {
+
+		var geo = new THREE.BufferGeometry();
+		var walker = new Walker();
+		walker.randomize();
+
+		geo.setIndex( new THREE.BufferAttribute( new Uint16Array( indices_array ), 1 ) );
+		geo.addAttribute( 'position', new THREE.BufferAttribute( walker.vertices, 3 ) );
+		geo.computeBoundingSphere();
+
+		mesh = new THREE.LineSegments( geo, material );
+
+		meshes.push( { mesh: mesh, walker: walker } );
+		scene.add( mesh );
+	}
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 4 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: !true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+var tmpVector = new THREE.Vector3();
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	boids.update();
+	boids.boids.forEach( function( b, id ) {
+		meshes[ id ].walker.update();
+		meshes[ id ].mesh.geometry.attributes.position.needsUpdate = true;
+		meshes[ id ].mesh.geometry.computeBoundingSphere();
+		meshes[ id ].mesh.position.copy( b.position );
+		meshes[ id ].mesh.quaternion.copy( b.orientation );
+	})
+//	mesh.material.uniforms.time.value = .01 * performance.now();
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
