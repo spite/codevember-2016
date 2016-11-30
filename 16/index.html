@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -14,7 +14,11 @@
 		<div id="container"></div>
 		<div id="info" >
 			<p><a href="../15" >Previous</a> | <a href="../17" >Next</a></p>
-			<h1>15. Torus</h1>
+			<h1>16. Torus</h1>
+			<p><a href="#" id="playBtn">Play</a></p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -24,6 +28,7 @@
 		<script src="../js/THREE.FBOHelper.js"></script>
 		<script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
 		<script src="../js/Odeo.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script id="ortho-vs" type="x-shader/x-vertex">
 
@@ -91,11 +96,21 @@ void main() {
 	vec3 c = texture2D( inputTexture, uv ).rgb;
 
 	intensity = c.r;
+	float freq = floor( texture2D( inputTexture, vec2( .5, 0. ) ).r * 10. );
 
 	float a = uv.y * 2. * M_PI;
-	float r = 50. + 50. * ( .5 + .5 * sin( a * 4. ) ) - intensity * 40.;
-	p.y = r * cos( a );
-	p.z = r * sin( a );
+	float r = 50. + 50. * ( .5 + .5 * sin( a * freq ) );
+	p.y = r * cos( a ); p.z = r * sin( a );
+
+	float e = .0001;
+	float ap = a + e;
+	float rp = 50. + 50. * ( .5 + .5 * sin( ap * freq ) );
+	vec3 pp = vec3( p.x, rp * cos( ap ), rp * sin( ap ) );
+
+	vec3 t = normalize( pp - p );
+	vec3 n = cross( t, vec3( 1., 0., 0. ) );
+
+	p += n * intensity * 50. * ( .5 + .5 * sin( a * freq ) );
 
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1. );
 
@@ -393,13 +408,14 @@ var odeo = new Odeo( {
 	soundCloudId: 'b1275b704badf79d972d51aa4b92ea15',
 	fftSize: 128
 } );
-/*document.getElementById( 'playBtn' ).addEventListener( 'click', function( e ) {
-	//odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
+document.getElementById( 'playBtn' ).addEventListener( 'click', function( e ) {
+	odeo.playSoundCloud( 'https://soundcloud.com/hunz/neon' );
 	//odeo.useMicrophone();
 	e.preventDefault();
-})*/
+})
 //odeo.useMicrophone();
-odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
+odeo.playSoundCloud( 'https://soundcloud.com/hunz/neon' );
+//odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
 //odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
 //odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
 
@@ -553,6 +569,8 @@ function init() {
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	helper = new FBOHelper( renderer );
 	helper.show( false );
