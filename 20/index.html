@@ -15,9 +15,17 @@
 		<div id="info" >
 			<p><a href="../19" >Previous</a> | <a href="../21" >Next</a></p>
 			<h1>20. Lines on a Sphere</h1>
-			<p><span id="toggleStreakBtn" class="action">Toggle streak size</span> | <span id="toggleCamBtn" class="action">Toggle camera position</span></p>
+			<p>Turning a particle system into an equirectangular panorama texture.</p>
+			<!--<p><span id="toggleStreakBtn" class="action">Toggle streak size</span> | <span id="toggleCamBtn" class="action">Toggle camera position</span></p>-->
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>The basis is a regular particle system (THREE.Points), moving with curl noise.</p>
+				<p>The particles are then processed by a vertex shader that turns the cartesian coordinates into cylindrical coordinates, so it can be rendered as an equirectangular panorama.</p>
+				<p>That buffer is then used as a texture for a sphere.</p>
+				<p>A fading shader is applied to the panorama buffer before rendering the particles to add some streaks.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by <a href="https://twitter.com/archillect/status/801940973278396416" >this image</a> and <a href="http://archillect.com/58740" >this image</a></p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/kaimallea/isMobile" >isMobile.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
