@@ -61,17 +61,28 @@ function OdeoMicrophone( odeo ) {
 
 OdeoMicrophone.prototype.play = function() {
 
-	if( !navigator.getUserMedia ) return;
+	if( navigator.getUserMedia ) {
 
-	navigator.getUserMedia( { audio: true }, function( stream ) {
+		navigator.getUserMedia( { audio: true }, function( stream ) {
 
-		this.microphone = this.odeo.context.createMediaStreamSource( stream );
-		this.microphone.connect( this.odeo.analyser );
+			this.microphone = this.odeo.context.createMediaStreamSource( stream );
+			this.microphone.connect( this.odeo.analyser );
 
-	}.bind( this ),
-	function() {
+		}.bind( this ),
+		function() {
 
-	} );
+		} );
+
+	} else if( navigator.mediaDevices ) {
+
+		navigator.mediaDevices.getUserMedia( { audio: true } ).then(function( stream ) {
+
+			this.microphone = this.odeo.context.createMediaStreamSource( stream );
+			this.microphone.connect( this.odeo.analyser );
+
+		}.bind( this ) ).catch(function(err) {
+		});
+	}
 
 }
 
