@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Droid+Sans+Mono|Lato:100,700|Playfair+Display:700" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -15,24 +15,21 @@
 		<div id="info" >
 			<p><a href="../13" >Previous</a> | <a href="../15" >Next</a></p>
 			<h1>14. Clock flag</h1>
-			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+			<p>A flag showing the time</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>The process is very similar to the Procedurally Textured Torus. The shader that creates the base for the texture combines basic voronoi to simulate the different shards, modulated with iq's voronoise to replicate some of the waviness of traditional tile. Everything is blurred a bit with a gaussian blur, and then a normal map is calculated from the height map. The normal map is then blurred a bit more.</p>
-				<p>The scene has two lights and a plane, using the procedural maps on a THREE.MeshStandardMaterial, plus a panorama converted to a cubemap to use as environment map.</p>
+				<p>The flag geometry is animted in CPU using constrained particles and Verlet integration, from the Cloth example.</p>
+				<p>The texture is drawn in 2D canvas and uploaded to the shader.</p>
+				<p>There are different changes of wind force every second, every minute and every hour.</p>
 				<p><b>Credits</b></p>
-				<p>Inspired by Gaudí's work and <a href="http://archillect.com/93970" >this picture</a><br/><a href="https://www.shadertoy.com/view/MslGD8">Voronoi - basic</a> and <a href="https://www.shadertoy.com/view/Xd23Dh" >Voronoise</a> by iq<br/>
-			<a href="https://www.shadertoy.com/view/XdfGDH">Gaussian Blur</a> by mrharicot<br/>
-			Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a><br/>
-	Casa Milà "La Pederera" panorama by <a href="https://plus.google.com/+ZeljkoSoletic360">Zeljko Soletic</a></p>
-				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/THREE.EquirectangularToCubemap" >EquirectangularToCubemap</a></p>
+				<p>Base on <a href="http://archillect.com/93785" >this picture</a></p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
-		<script src="../js/Maf.js"></script>
 		<script src="../js/ImprovedNoise.js"></script>
 		<script src="../js/Cloth.js"></script>
 		<script src="../js/Common.js"></script>
