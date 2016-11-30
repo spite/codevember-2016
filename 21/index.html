@@ -15,20 +15,14 @@
 		<div id="info" >
 			<p><a href="../20" >Previous</a> | <a href="../22" >Next</a></p>
 			<h1>21. Numerical renderer</h1>
-			<!--<span class="action" id="toggleDOFBtn">Toggle DOF direction</span> | <span class="action" id="togglePreBlur">Toggle blur mode</span></p>-->
+			<p>Like those ASCII renderers, but with less characters: just 10.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Path is a THREE.Curves.TorusKnot, and it's used to move the camera and generate a tunel with THREE.TubeGeometry.</p>
-				<p>The tunnel is rendered to three different framebuffers: diffuse color, only glow textures and depth buffer.</p>
-				<p>Then glow and diffuse are combined in a pass that uses bias on texture2D to create a soft glow out of the glow texture. The glow texture is smaller than the diffuse texture, but there's no blur involved. The glow strength is used to add a dirt lens texture on top.</p>
-				<p>Then the combined diffuse+glow texture has a poisson-disc based blur performed, modulated by the depth buffer, to create the DOF efffect.</p>
-				<p>A final pass performs FXXA, adds a bit of noise and vignetting.</p>
-				<p>Some discarded ideas are: using a blur framebuffer created with a separable blur (it's faster but the result is less compelling), adding an interlaced effect on top of the final buffer (it looks correct, but it makes DOF unnoticeable), RGB shift / chromatic aberration pass (it was just too much, didn't improve the result).</p>
+				<p>A simple scene rendered with lights, shadows and MeshStandardMaterial is rendered to a framebuffer.</p>
+				<p>That framebuffer is then processed to add some glow, and then a scaled down version is used to feed a shader that will replace every block of 32x32 pixels with a part of a texture that has the numbers 0 to 9, according to the brightness of the block. The number is aditionally shaded by that intensity, so there's more gradients. The texture with numbers has a slight glow preapplied on it.</p>
 				<p><b>Credits</b></p>
-				<p>Path and tunnel created with the excellent <a href="https://threejs.org/examples/webgl_geometry_extrude_splines.html" >Spline Extrusion</a> by zz85.</p>
-				<p><a href="https://www.shadertoy.com/view/lsfGWn" >Blur: Poisson Disc</a> by hornet, <a href="https://www.shadertoy.com/view/ls3GWS" >Post process - FXAA</a> by reinder and <a href="https://www.shadertoy.com/view/XssGz8" >post: Barrel Blur Chroma</a> by hornet, all from <a href="https://www.shadertoy.com" >ShaderToy</a>.</p>
-				<p>
-				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
+				<p>Inspired by <a href="http://archillect.com/40844" >this animation</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/kaimallea/isMobile" >isMobile.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
