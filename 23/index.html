@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Emitter</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../22" >Previous</a> | <a href="../24" >Next</a></p>
+			<h1>23. Emitter</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/cannon.min.js"></script>
+		<script src="../js/GeometryUtils.js"></script>
+
+<script>
+
+// https://twitter.com/archillect/status/799952886654341121
+
+'use strict';
+
+var SPHERES = parseInt( window.location.hash.substr( 1 ), 10 ) || 40;
+
+var container, renderer, camera, controls, scene;
+var mesh, groundMesh;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+var world = new CANNON.World();
+world.gravity.set(0, 0, -9.82); // m/s²
+var fixedTimeStep = 1.0 / 60.0; // seconds
+var maxSubSteps = 3;
+
+world.broadphase = new CANNON.NaiveBroadphase();
+world.solver.iterations = 10;
+world.defaultContactMaterial.contactEquationStiffness = 5e6;
+world.defaultContactMaterial.contactEquationRelaxation = 10;
+//world.quatNormalizeFast = true;
+//world.quatNormalizeSkip = 4;
+var damping = 0.5;
+
+var sphereData = [];
+var sphereMotionData = []
+var sphereColors = [];
+var sphereMeshes = [];
+var spherePoints = [];
+
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+
+function initScene() {
+
+	var light = new THREE.HemisphereLight( 0, 0x808080, .1 );
+	scene.add( light );
+	//light.color.setHSL( Maf.randomInRange( 0, 1 ), Maf.randomInRange( .25, .75 ), .5 );
+	//light.groundColor.setHSL( Maf.randomInRange( 0, 1 ), Maf.randomInRange( .25, .75 ), .5 );
+
+	var light1 = new THREE.SpotLight( 0xffffff, .5, 400, 1, 1 );
+	light1.position.set( 10, 10, 10 );
+	scene.add( light1 );
+	light1.castShadow = true;
+
+	var light2 = new THREE.SpotLight( 0xffffff, 1, 400, 1, 1 );
+	light2.position.set( -10, 4, -1 );
+	scene.add( light2 );
+	light2.castShadow = true;
+
+	for( var j = 0; j < SPHERES; j++ ) {
+
+		var pos = new THREE.Vector3(
+			Maf.randomInRange( -1, 1 ),
+			Maf.randomInRange( 1, 4 ),
+			Maf.randomInRange( -1, 1 )
+		);
+
+		var scale = Maf.randomInRange( .5, 1 );
+
+		sphereData.push( new THREE.Vector4( pos.x, pos.y, pos.z, scale ) );
+		sphereColors.push( new THREE.Color( ).setHSL(
+			Maf.randomInRange( 0, 1 ),
+			Maf.randomInRange( 1,1 ),
+			Maf.randomInRange( .5,.5 )
+		) );
+
+		var radius = 1; // m
+		var sphereBody = new CANNON.Body({
+			mass: scale, // kg
+			position: new CANNON.Vec3( pos.x, pos.z, pos.y ), // m
+			shape: new CANNON.Sphere( scale ),
+			material: groundMaterial
+		});
+		//sphereBody.linearDamping = sphereBody.angularDamping = damping;
+		world.addBody(sphereBody);
+
+		sphereMotionData.push( {
+			body: sphereBody,
+			scale: scale
+		} );
+
+	}
+
+	var material = new THREE.MeshStandardMaterial( {
+		color: 0xffffff,
+		roughness: .8,
+		metalness: .2,
+		map: new THREE.TextureLoader().load( '../assets/xortexture.gif' )
+	} );
+
+	var groundMaterial = new CANNON.Material("groundMaterial");
+	var ground_ground_cm = new CANNON.ContactMaterial(groundMaterial, groundMaterial, {
+		friction: .4,
+		restitution: 0.3,
+		contactEquationStiffness: 1e8,
+		contactEquationRelaxation: 3,
+		frictionEquationStiffness: 1e8,
+		frictionEquationRegularizationTime: 3,
+	});
+	world.addContactMaterial(ground_ground_cm);
+
+	// ground plane
+    var groundShape = new CANNON.Plane();
+    var groundBody = new CANNON.Body({ mass: 0, material: groundMaterial });
+    groundBody.addShape(groundShape);
+    world.add(groundBody);
+
+    groundMesh = new THREE.Mesh(
+   		new THREE.PlaneBufferGeometry( 100, 100 ),
+   		material
+    )
+    groundMesh.receiveShadow = true;
+    groundMesh.rotation.x = -Math.PI / 2;
+    scene.add( groundMesh );
+
+    // plane -x
+    var planeShapeXmin = new CANNON.Plane();
+    var planeXmin = new CANNON.Body({ mass: 0 });
+    planeXmin.addShape(planeShapeXmin);
+    planeXmin.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),Math.PI/2);
+    planeXmin.position.set(-10,0,0);
+    world.add(planeXmin);
+
+    // Plane +x
+    var planeShapeXmax = new CANNON.Plane();
+    var planeXmax = new CANNON.Body({ mass: 0 });
+    planeXmax.addShape(planeShapeXmax);
+    planeXmax.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0),-Math.PI/2);
+    planeXmax.position.set(10,0,0);
+    world.add(planeXmax);
+
+    // Plane -y
+    var planeShapeYmin = new CANNON.Plane();
+    var planeYmin = new CANNON.Body({ mass: 0 });
+    planeYmin.addShape(planeShapeYmin);
+    planeYmin.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),-Math.PI/2);
+    planeYmin.position.set(0,-10,0);
+    world.add(planeYmin);
+
+    // Plane +y
+    var planeShapeYmax = new CANNON.Plane();
+    var planeYmax = new CANNON.Body({ mass: 0 });
+    planeYmax.addShape(planeShapeYmax);
+    planeYmax.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0),Math.PI/2);
+    planeYmax.position.set(0,10,0);
+    world.add(planeYmax);
+
+    var sphereGeometry = new THREE.IcosahedronGeometry( 1, 3 );
+    var pointsInGeometry = new THREE.Geometry();
+    pointsInGeometry.vertices = THREE.GeometryUtils.randomPointsInGeometry( sphereGeometry, 10 );
+    pointsInGeometry.computeBoundingSphere();
+    sphereGeometry = new THREE.BufferGeometry().fromGeometry( sphereGeometry );
+
+    var pointsMaterial = new THREE.PointsMaterial( { size: .1 } );
+
+	sphereData.forEach( ( sphere, id ) => {
+
+		var mesh = new THREE.Mesh( sphereGeometry, material );
+		mesh.position.set( sphere.x, sphere.y, sphere.z );
+		mesh.scale.set( sphere.w, sphere.w, sphere.w );
+		scene.add( mesh );
+		mesh.receiveShadow = true;
+		mesh.castShadow = true;
+
+		sphereMeshes.push( mesh );
+
+		var points = new THREE.Points( pointsInGeometry, pointsMaterial );
+		points.position.set( sphere.x, sphere.y, sphere.z );
+		points.scale.set( sphere.w, sphere.w, sphere.w );
+
+		spherePoints.push( points );
+		scene.add( points );
+
+	} );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	scene.fog = new THREE.FogExp2( 0, .0025 );
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 15, 15 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'click', onClick);
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+var dir = new THREE.Vector3();
+
+function onClick( e ) {
+
+	var x = event.clientX || event.changedTouches[ 0 ].clientX;
+	var y = event.clientY || event.changedTouches[ 0 ].clientY;
+
+	mouse.x = ( x / renderer.domElement.clientWidth ) * 2 - 1;
+	mouse.y = - ( y / renderer.domElement.clientHeight ) * 2 + 1;
+	raycaster.setFromCamera( mouse, camera );
+
+	var intersects = raycaster.intersectObject( groundMesh );
+
+	if ( intersects.length > 0 ) {
+
+		sphereMotionData.forEach( ( m, i ) => {
+
+			dir.copy( sphereMeshes[ i ].position );
+			dir.sub( intersects[ 0 ].point );
+			dir.normalize().multiplyScalar( 10 );
+			var impulse = new CANNON.Vec3( dir.x, dir.z, dir.y );
+			m.body.applyImpulse( impulse, m.body.position );
+
+		} );
+
+	}
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+var lastTime = 0;
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	var t = performance.now();
+	var dt = ( t - lastTime ) / 1000;
+	lastTime = t;
+
+	world.step( fixedTimeStep, dt, maxSubSteps );
+
+	sphereMotionData.forEach( ( s, id ) => {
+
+		sphereData[ id ].x = s.body.position.x;
+		sphereData[ id ].y = s.body.position.z;
+		sphereData[ id ].z = s.body.position.y;
+
+		sphereData[ id ].w = s.scale;
+
+		sphereMeshes[ id ].position.set( s.body.position.x, s.body.position.z, s.body.position.y );
+		sphereMeshes[ id ].quaternion.set( s.body.quaternion.x, s.body.quaternion.y, s.body.quaternion.z, s.body.quaternion.w );
+		sphereMeshes[ id ].scale.set( s.scale, s.scale, s.scale );
+
+		spherePoints[ id ].position.set( s.body.position.x, s.body.position.z, s.body.position.y );
+		spherePoints[ id ].quaternion.set( s.body.quaternion.x, s.body.quaternion.y, s.body.quaternion.z, s.body.quaternion.w );
+		spherePoints[ id ].scale.set( s.scale, s.scale, s.scale );
+
+	} );
+
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
