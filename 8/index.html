@@ -15,12 +15,15 @@
 		<div id="info" >
 			<p><a href="../7" >Previous</a> | <a href="../9" >Next</a></p>
 			<h1>8. Metaballs</h1>
+			<p>Using CPU marching cubes to create metaballs, and similar to <a href="../6">Wobbly Earth</a>, using a Custom Standard material, this time to also modify the fragment shader, and add a striped procedural texture to the metaballs, and modify the normal to add some bump across the alternating lines.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
-				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p>The fragment shader computes a color based on the y position of the fragment, and calculates the discontinuities between lines, perturbing the normal accordingly.</p>
+				<p>The rest is all marching cubes and MeshStandardMaterial.</p>
 				<p><b>Credits</b></p>
-				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+				<p>Based on Matt DesLauriers's <a href="https://gist.github.com/mattdesl/034c5daf2cf5a01c458bc9584cbe6744" >Custom mesh standard material</a>.</p>
+				<p>Inspired by <a href="http://archillect.com/30840" >this animation</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a> and the <a href="https://threejs.org/examples/webgl_marchingcubes.html" >Marching Cubes example</a>.</p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -35,7 +38,7 @@
 
 <script>
 
-// http://archillect.com/30840
+//
 
 'use strict';
 
