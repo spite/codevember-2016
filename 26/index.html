@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -15,6 +15,9 @@
 		<div id="info" >
 			<p><a href="../25" >Previous</a> | <a href="../27" >Next</a></p>
 			<h1>26. Volumetric rendering</h1>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -22,6 +25,9 @@
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
 		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/Common.js"></script>
+		<script src="../js/isMobile.min.js"></script>
+		<script src="../js/DeviceOrientationControls.js"></script>
 
 <script type="x-shader/x-vertex" id="ortho-vs" >
 
@@ -169,15 +175,16 @@ float plasmaNoise( vec3 p ) {
 
 float cloudNoise( vec3 p ) {
 
-	float n = .5 + .5 * snoise( 2. * p + vec3( time, 0., 0. ) ) +
-		.5 + .5 * snoise( 2.1 * p + vec3( time, 0., 0. ) );
-	n /= 2.;
+	vec3 pos = p + vec3( .5 * time, 0., 0. );
+	float n = .5 + .5 * snoise( 1. * pos ) +
+		.5 + .5 * snoise( 2. * pos ) +
+		.5 + .5 * snoise( 4. * pos );
+	n /= 3.;
 	n = smoothstep( .25, .75, n );
 
 	return n;
 
 }
-
 
 float turbulenceNoise( vec3 p ) {
 
@@ -211,11 +218,9 @@ void main() {
 
 	#ifdef SOLID
 	for( int i = 0; i < 100; i++ ) {
-		float n = cloudNoise( p );
+		float n = 2. * cloudNoise( p );
 		float n2 = n;
-		n *= ( float( i ) / maxSteps );
-		n2 = smoothstep( .89, .91, n2 );
-		//res += n;
+		n2 = smoothstep( .99, 1., n2 );
 		res += n2 * ( 1. - ( float( i ) / maxSteps ) );
 		p += step;
 		steps++;
@@ -410,7 +415,7 @@ function init() {
 
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 2 );
+	camera.position.set( 0, 0, .5 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
@@ -423,8 +428,15 @@ function init() {
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
 	helper = new FBOHelper( renderer );
+	helper.show( false );
 
-	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
+
+	if( isMobile.any ) {
+		controls = new THREE.DeviceOrientationControls( camera );
+	} else {
+		controls = new THREE.OrbitControls( camera, renderer.domElement );
+	}
 
 	initScene();
 	onWindowResized();
@@ -447,8 +459,10 @@ function onWindowResized( event ) {
 	var dPR = window.devicePixelRatio;
 	//resolution.set( w * dPR, h * dPR );
 
-	var bw = Maf.nextPowerOfTwo( w * dPR / 8 );
-	var bh = Maf.nextPowerOfTwo( h * dPR / 8 );
+	var res = isMobile.any ? 16: 8;
+
+	var bw = Maf.nextPowerOfTwo( w * dPR / res );
+	var bh = Maf.nextPowerOfTwo( h * dPR / res );
 
 	backFBO.setSize( bw, bh );
 	frontFBO.setSize( bw, bh );
