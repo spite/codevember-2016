@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Codevember 2016</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
+
+		<style>
+		body{ overflow: auto; }
+		section{ padding: 40px 0; position: absolute; }
+		h1{ font-family: 'Playfair Display', serif; font-size: 30px; margin-bottom: 1em; }
+		h2{ font-family: 'Playfair Display', serif; font-size: 16px;}
+		#intro{ margin-bottom: 2em;}
+		li{ width: 300px; height: 140px; float: left; padding: 2px; cursor:pointer;}
+		li h2{ position: absolute; left: 20px; top: 20px; right: 20px; }
+		li div{ border: 1px solid rgba( 255, 255, 255, .4 ); position: relative; width: 100%; height: 100%; transition: border 250ms ease-out;}
+		li.disabled{ cursor: default; opacity: .1;}
+		li:not(.disabled):hover div{ border: 1px solid rgba( 255, 255, 255, 1 ); }
+		li p{ position: absolute; left: 20px; bottom: 20px; right: 20px;}
+		ul{ list-style-type: none; }
+		canvas{ position: fixed; left: 0; top: 0; right: 0; bottom: 0; }
+		.break{ clear: both;}
+		</style>
+
+	</head>
+	<body>
+
+	<section>
+
+		<h1>Codevember 2016</h1>
+
+		<div id="intro">
+			<p>This page is still a <b>work in progress</b></p>
+		</div>
+
+		<ul id="entries">
+			<li>
+				<div>
+					<h2>Procedurally textured torus</h2>
+					<p>A.k.a. "The decadent golden-plated knot torus"</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Dotty Earth</h2>
+					<p>All is full of dots</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Strange attractors</h2>
+					<p>Strangely attractive strange attractors</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Trencadís texture</h2>
+					<p>A surface shader to make a plane look like glazed porcelain</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Particle field</h2>
+					<p>Oldschool plasma moving particles with motion blur</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Wobbly Earth</h2>
+					<p>The day the Earth didn't stood still</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>A (very) poor man's GI</h2>
+					<p>Computing Global Illumination (GI) by rendering the scene from every vertex... four times!</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Metaballs</h2>
+					<p>Shiny striped metaballs</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Street View PBR</h2>
+					<p>Hacking image-based lighting (IBL) into a material</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Odeo</h2>
+					<p>Music visualisation to demo an audio manager</p>
+				</div>
+			</li>
+
+		</ul>
+
+		<span class="break"></span>
+
+	</section>
+
+<script>
+
+var panel = document.querySelector( 'section' );
+
+onWindowResize();
+
+var entries = [].slice.call( document.querySelectorAll( '#entries li' ) );
+var panels = [].slice.call( document.querySelectorAll( '#entries li div' ) );
+
+entries.forEach( function( entry, id ) {
+
+	if( entry.getAttribute( 'data-disabled' ) === null ) {
+		entry.addEventListener( 'click', function( e ) {
+			window.location = './' + ( id + 1 );
+		})
+	} else {
+		entry.classList.add( 'disabled' );
+	}
+})
+
+window.addEventListener( 'resize', onWindowResize );
+
+function onWindowResize() {
+
+	var dPR = window.devicePixelRatio;
+	var w = window.innerWidth * dPR - 80;
+	var liW = 300 * dPR;
+	var pW = Math.floor( w / liW ) * liW;
+	panel.style.width = pW / dPR + 'px';
+	panel.style.left = Math.round( .5 * ( window.innerWidth - pW / dPR ) ) + 'px';
+
+}
+
+</script>
+
+	</body>
+</html>
