@@ -15,20 +15,26 @@
 		<div id="info" >
 			<p><a href="../9" >Previous</a> | <a href="../11" >Next</a></p>
 			<h1>10. Odeo</h1>
-			<p><a href="#" id="playBtn">Play</a></p>
+			<p>Build a media player class that can be easily integrated, supporting media playback, SoundCloud streaming and getUserMedia streams, using Web Audio API.</p>
+			<p>It also uses AnalyserNode to perform an FFT, and can upload the spectrum to a GPU texture.</p>
+			<p>Can work together with kick detection.</p>
+			<p><span class="action" id="playBtn">Play</span> | <span class="action" id="micBtn">Use microphone</span></p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
-				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p>SoundCloud stream is done via their API, connecting the stream source to an HTMLAudioElement and creating a MediaElementSource from that.</p>
+				<p>The microphone can be used via navigator.getUserMedia<().</p>
+				<p>I didn't have time to implement media playback, it would be done with MediaElementSource, too.</p>
+				<p>All nodes are connected to an AnalyserNode and to the AudioContext destination.</p>
+				<p>The visualisation is done in a single draw call of particle-triangles, with the color from a gradient texture. Positions are updated in CPU, from the FFT data.</p>
 				<p><b>Credits</b></p>
-				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+				<p>Song is <a href="https://soundcloud.com/datashat/people-without-mouths" >People Without Mouths</a> by Datassette</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, the SoundCloud API and Odeo.js</p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
 		<script src="../js/three.js"></script>
 		<script src="../js/OrbitControls.js"></script>
-		<script src="../js/Maf.js"></script>
 		<script src="../js/Common.js"></script>
 
 		<script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
@@ -87,7 +93,6 @@ void main() {
 }
 </script>
 
-
 <script>
 
 'use strict';
@@ -103,14 +108,15 @@ var odeo = new Odeo( {
 	soundCloudId: 'b1275b704badf79d972d51aa4b92ea15'
 } );
 document.getElementById( 'playBtn' ).addEventListener( 'click', function( e ) {
+	odeo.stopUsingMicrophone();
 	odeo.playSoundCloud( 'https://soundcloud.com/datashat/people-without-mouths' );
-	//odeo.useMicrophone();
 	e.preventDefault();
 })
-//odeo.useMicrophone();
-//odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
-//odeo.playSoundCloud( 'https://soundcloud.com/wmstrecs/goodbye-moonmen-full-track' );
-//odeo.playSoundCloud( 'https://soundcloud.com/chaoschaos/do-you-feel-it' );
+document.getElementById( 'micBtn' ).addEventListener( 'click', function( e ) {
+	odeo.stopSoundCloud();
+	odeo.useMicrophone();
+	e.preventDefault();
+})
 odeo.playSoundCloud( 'https://soundcloud.com/datashat/people-without-mouths' );
 
 var kickIsOn = false;
