@@ -15,8 +15,14 @@
 		<div id="info" >
 			<p><a href="../21" >Previous</a> | <a href="../23" >Next</a></p>
 			<h1>22. Line thickness</h1>
+			<p>Simulating the effect of linocut, or wood engraving.</p>
+			<p><b>Drop an image</b> in the page!</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>The image is uploaded to a texture, and a fragment shader generates a few curvy lines based on a sinus, and modulates the contrast of those lines with the intensity of the uploaded image, effectively changing the width of the line.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by <a href="https://twitter.com/archillect/status/796235885952061440" >this image</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>.<br/>Prototype on <a href="https://www.shadertoy.com/view/MttXRB" >ShaderToy</a>.</p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -29,7 +35,7 @@
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
 		<script src="../js/Common.js"></script>
-		<script src="../js/OBJLoader.js"></script>
+		<!--<script src="../js/OBJLoader.js"></script>-->
 
 <script type="x-shader/x-vertex" id="vs" >
 
