@@ -1,27 +1,30 @@
 <!doctype html>
 <html lang="en">
 	<head>
-		<title>AO Blocks</title>
+		<title>AO Spheres</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
 
 		<div id="container"></div>
 		<div id="info" >
-			<p><a href="../4" >Previous</a> | <a href="../6" >Next</a></p>
-			<h1>24. AO Blocks</h1>
+			<p><a href="../23" >Previous</a> | <a href="../25" >Next</a></p>
+			<h1>24. AO Spheres</h1>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
 		<script src="../js/three-drawRange.js"></script>
 		<script src="../js/OrbitControls.js"></script>
 		<script src="../js/Maf.js"></script>
-		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/Common.js"></script>
 
 <script id="sphere-vs" type="x-shader/x-vertex">
 attribute vec3 position;
@@ -169,8 +172,6 @@ var lodLevel = [ .25, 1, 500 ];
 
 var container, renderer, camera, controls, scene;
 var mesh, world = new THREE.Object3D();
-
-var helper;
 
 var container = document.getElementById( 'container' );
 var centerDummy = new THREE.Mesh( new THREE.IcosahedronBufferGeometry(1,3), new THREE.MeshNormalMaterial() );
@@ -320,6 +321,8 @@ function init() {
 	container.addEventListener( 'touchstart', onMouseDown, false );
 	container.addEventListener( 'touchend', onMouseUp, false );
 	container.addEventListener( 'touchcanel', onMouseUp, false );
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	animate();
 
