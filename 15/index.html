@@ -6,7 +6,7 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
 	</head>
 	<body>
@@ -15,6 +15,10 @@
 		<div id="info" >
 			<p><a href="../14" >Previous</a> | <a href="../16" >Next</a></p>
 			<h1>15. Crystals</h1>
+			<p><span id="refreshBtn" class="action" >Generate a new one</span></p>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
 
@@ -23,6 +27,335 @@
 		<script src="../js/Maf.js"></script>
 		<script src="../js/EquirectangularToCubemap.js"></script>
 		<script src="../js/ImprovedNoise.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+		<script src="../js/Common.js"></script>
+
+<script type="x-shader/x-vertex" id="ortho-vs" >
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="poisson-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform sampler2D depthTexture;
+uniform vec2 resolution;
+uniform float time;
+
+varying vec2 vUv;
+
+float nrand( vec2 n ) {
+	return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+vec2 rot2d( vec2 p, float a ) {
+	vec2 sc = vec2(sin(a),cos(a));
+	return vec2( dot( p, vec2(sc.y, -sc.x) ), dot( p, sc.xy ) );
+}
+
+const int NUM_TAPS = 27;
+const float rcp_maxdist = 1.0 / 4.22244;
+
+vec4 poissonSample( sampler2D map, vec2 uv, float radius ) {
+
+	float max_siz = radius;
+
+	vec2 fTaps_Poisson[NUM_TAPS];
+	fTaps_Poisson[0]  = rcp_maxdist * vec2(  -0.8835609, 2.523391 );
+	fTaps_Poisson[1]  = rcp_maxdist * vec2(  -1.387375, 1.056318 );
+	fTaps_Poisson[2]  = rcp_maxdist * vec2(  -2.854452, 1.313645 );
+	fTaps_Poisson[3]  = rcp_maxdist * vec2(  0.6326182, 1.14569 );
+	fTaps_Poisson[4]  = rcp_maxdist * vec2(  1.331515, 3.637297 );
+	fTaps_Poisson[5]  = rcp_maxdist * vec2(  -2.175307, 3.885795 );
+	fTaps_Poisson[6]  = rcp_maxdist * vec2(  -0.5396664, 4.1938 );
+	fTaps_Poisson[7]  = rcp_maxdist * vec2(  -0.6708734, -0.36875 );
+	fTaps_Poisson[8]  = rcp_maxdist * vec2(  -2.083908, -0.6921188 );
+	fTaps_Poisson[9]  = rcp_maxdist * vec2(  -3.219028, 2.85465 );
+	fTaps_Poisson[10] = rcp_maxdist * vec2(  -1.863933, -2.742254 );
+	fTaps_Poisson[11] = rcp_maxdist * vec2(  -4.125739, -1.283028 );
+	fTaps_Poisson[12] = rcp_maxdist * vec2(  -3.376766, -2.81844 );
+	fTaps_Poisson[13] = rcp_maxdist * vec2(  -3.974553, 0.5459405 );
+	fTaps_Poisson[14] = rcp_maxdist * vec2(  3.102514, 1.717692 );
+	fTaps_Poisson[15] = rcp_maxdist * vec2(  2.951887, 3.186624 );
+	fTaps_Poisson[16] = rcp_maxdist * vec2(  1.33941, -0.166395 );
+	fTaps_Poisson[17] = rcp_maxdist * vec2(  2.814727, -0.3216669 );
+	fTaps_Poisson[18] = rcp_maxdist * vec2(  0.7786853, -2.235639 );
+	fTaps_Poisson[19] = rcp_maxdist * vec2(  -0.7396695, -1.702466 );
+	fTaps_Poisson[20] = rcp_maxdist * vec2(  0.4621856, -3.62525 );
+	fTaps_Poisson[21] = rcp_maxdist * vec2(  4.181541, 0.5883132 );
+	fTaps_Poisson[22] = rcp_maxdist * vec2(  4.22244, -1.11029 );
+	fTaps_Poisson[23] = rcp_maxdist * vec2(  2.116917, -1.789436 );
+	fTaps_Poisson[24] = rcp_maxdist * vec2(  1.915774, -3.425885 );
+	fTaps_Poisson[25] = rcp_maxdist * vec2(  3.142686, -2.656329 );
+	fTaps_Poisson[26] = rcp_maxdist * vec2(  -1.108632, -4.023479 );
+
+	vec4 sum = vec4(0);
+	vec2 seed = uv + fract( time );
+	float rnd = 6.28 * nrand( seed );
+
+	vec4 basis = vec4( rot2d(vec2(1,0),rnd), rot2d(vec2(0,1),rnd) );
+	for (int i=0; i < NUM_TAPS; i += 1)
+	{
+		vec2 ofs = fTaps_Poisson[i]; ofs = vec2(dot(ofs,basis.xz),dot(ofs,basis.yw) );
+        //vec2 ofs = rot2d( fTaps_Poisson[i], rnd );
+		vec2 texcoord = uv + max_siz * ofs / resolution.xy;
+		sum += texture2D(map, texcoord, -16.0);
+	}
+
+	return sum / vec4(NUM_TAPS);
+
+}
+
+#define USE_MIPMAP
+
+// The Golden Angle is (3.-sqrt(5.0))*PI radians, which doesn't precompiled for some reason.
+// The compiler is a dunce I tells-ya!!
+#define GOLDEN_ANGLE 2.39996323
+
+#define ITERATIONS 140
+
+mat2 rot = mat2(cos(GOLDEN_ANGLE), sin(GOLDEN_ANGLE), -sin(GOLDEN_ANGLE), cos(GOLDEN_ANGLE));
+
+//-------------------------------------------------------------------------------------------
+vec3 Bokeh(sampler2D tex, vec2 uv, float radius, float amount)
+{
+	vec3 acc = vec3(0.0);
+	vec3 div = vec3(0.0);
+	vec2 pixel = 1.0 / resolution.xy;
+	float r = 1.0;
+    vec2 vangle = vec2(0.0,radius); // Start angle
+    amount += radius*500.0;
+
+	for (int j = 0; j < ITERATIONS; j += 2 )
+	{
+		r += 1. / r;
+		vangle = rot * vangle;
+		// (r-1.0) here is the equivalent to sqrt(0, 1, 2, 3...)
+		#ifdef USE_MIPMAP
+		vec3 col = texture2D(tex, uv + pixel * (r-1.) * vangle, radius).xyz;
+		#else
+		vec3 col = texture2D(tex, uv + pixel * (r-1.) * vangle).xyz;
+		#endif
+		col = col * col * 1.5; // ...contrast it for better highlights - leave this out elsewhere.
+		vec3 bokeh = pow(col, vec3(9.0)) * amount+.4;
+		acc += col * bokeh;
+		div += bokeh;
+	}
+
+	return acc / div;
+
+}
+
+vec4 tex( sampler2D map, vec2 uv){
+	return pow(texture2D(map, uv), vec4(2.2));
+}
+
+vec4 accumCol;
+vec4 accumW;
+
+const float mas = 0.0;
+
+void add( sampler2D map, vec2 uv, float i, float j, float radius ){
+	vec2 pixel = 1.0/resolution.xy;
+	float factor = 1./resolution.y * 64.0;
+	vec2 offset = pixel * vec2(i, j);
+	vec4 col = tex( map, uv + offset * radius);
+	vec4 bokeh = vec4(1.0) + pow(col, vec4(4.0)) * vec4(factor);
+	accumCol += col * bokeh;
+	accumW += bokeh;
+}
+
+vec4 blur( sampler2D map, vec2 uv, float radius ){
+
+	for (float j = -7.0 + mas; j <= 7.0 - mas; j += 1.0)
+		for (float i = -7.0 + mas; i <=7.0 - mas; i += 1.0){
+			add( map, uv, i, j, radius );
+		}
+
+		for (float i = -5.0 + mas; i <=5.0 - mas; i+=1.0){
+			add( map, uv, i, -8.0 + mas, radius );
+			add( map, uv, i, 8.0 - mas, radius );
+		}
+		for (float j = -5.0 + mas; j <=5.0 - mas; j+=1.0){
+			add( map, uv, -8.0 + mas, j, radius );
+			add( map, uv, 8.0 - mas, j, radius );
+		}
+
+		for (float i = -3.0 +mas; i <=3.0 -  mas; i+=1.0){
+			add( map, uv, i, -9.0 + mas, radius );
+			add( map, uv, i, 9.0 - mas, radius );
+		}
+		for (float j = -3.0 + mas; j <=3.0 - mas; j+=1.0){
+			add( map, uv, -9.0 + mas, j, radius );
+			add( map, uv, 9.0 - mas, j, radius );
+		}
+
+		return accumCol/accumW;
+	}
+
+void main() {
+
+    vec2 uv = vUv;
+
+	accumCol = vec4(0.0);
+	accumW = vec4(0.0);
+
+    float d = texture2D( depthTexture, vUv ).r;
+	float depth = smoothstep( 0., 1., d );
+
+//	vec4 color = blur( inputTexture, vUv, depth );
+	vec4 color = vec4( Bokeh( inputTexture, vUv, depth, 8. ), 1. );
+//	vec4 color = poissonSample( inputTexture, vUv, depth * 8. );
+
+	color.rgb = pow( color.rgb, 1. / vec3( 2.2 ) );
+
+	gl_FragColor = color;
+
+  }
+
+  </script>
+
+<script type="x-shader/x-vertex" id="depth-vs" >
+precision highp float;
+
+attribute vec3 position;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying float vDepth;
+
+void main() {
+
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+	vDepth = clamp( ( gl_Position.z - 4. ) / 5., 0., 1. );
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="depth-fs" >
+precision highp float;
+
+varying float vDepth;
+
+void main(){
+
+	gl_FragColor = vec4( vec3( vDepth), 1. );
+
+}
+</script>
+
+<script type="x-shader/x-fragment" id="final-fs" >
+precision highp float;
+
+uniform sampler2D inputTexture;
+uniform vec2 resolution;
+uniform float reduction;
+uniform float boost;
+uniform float amount;
+uniform float time;
+
+varying vec2 vUv;
+
+float random(vec2 n, float offset ){
+	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
+}
+
+float applyOverlayToChannel( float base, float blend ) {
+
+	return (base < 0.5 ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend)));
+
+}
+
+#define FXAA_SPAN_MAX 8.0
+#define FXAA_REDUCE_MUL   (1.0/FXAA_SPAN_MAX)
+#define FXAA_REDUCE_MIN   (1.0/128.0)
+#define FXAA_SUBPIX_SHIFT (1.0/4.0)
+
+vec3 FxaaPixelShader( vec4 uv, sampler2D tex, vec2 rcpFrame) {
+
+    vec3 rgbNW = texture2D(tex, uv.zw ).xyz;
+    vec3 rgbNE = texture2D(tex, uv.zw + vec2(1,0)*rcpFrame.xy ).xyz;
+    vec3 rgbSW = texture2D(tex, uv.zw + vec2(0,1)*rcpFrame.xy ).xyz;
+    vec3 rgbSE = texture2D(tex, uv.zw + vec2(1,1)*rcpFrame.xy ).xyz;
+    vec3 rgbM  = texture2D(tex, uv.xy ).xyz;
+
+    vec3 luma = vec3(0.299, 0.587, 0.114);
+    float lumaNW = dot(rgbNW, luma);
+    float lumaNE = dot(rgbNE, luma);
+    float lumaSW = dot(rgbSW, luma);
+    float lumaSE = dot(rgbSE, luma);
+    float lumaM  = dot(rgbM,  luma);
+
+    float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+    float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+
+    vec2 dir;
+    dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+    dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+
+    float dirReduce = max(
+        (lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL),
+        FXAA_REDUCE_MIN);
+    float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);
+
+    dir = min(vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX),
+          max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
+          dir * rcpDirMin)) * rcpFrame.xy;
+
+    vec3 rgbA = (1.0/2.0) * (
+        texture2D(tex, uv.xy + dir * (1.0/3.0 - 0.5) ).xyz +
+        texture2D(tex, uv.xy + dir * (2.0/3.0 - 0.5) ).xyz);
+    vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (
+        texture2D(tex, uv.xy + dir * (0.0/3.0 - 0.5) ).xyz +
+        texture2D(tex, uv.xy + dir * (3.0/3.0 - 0.5) ).xyz);
+
+    float lumaB = dot(rgbB, luma);
+
+    if((lumaB < lumaMin) || (lumaB > lumaMax)) return rgbA;
+
+    return rgbB;
+}
+
+void main() {
+
+    vec2 res = 1. / resolution;
+
+   	vec4 aauv = vec4( vUv, vUv - (res * (0.5 + FXAA_SUBPIX_SHIFT)));
+    vec4 color;
+    color.rgb = FxaaPixelShader( aauv, inputTexture, res );
+
+    vec2 position = ( gl_FragCoord.xy / resolution ) - .5;
+	float vignette = length( position );
+    vignette = boost - vignette * reduction;
+
+    color.rgb = vec3(
+		applyOverlayToChannel( color.r, vignette ),
+		applyOverlayToChannel( color.g, vignette ),
+		applyOverlayToChannel( color.b, vignette )
+	);
+
+    //color += vec4( vec3( amount * random( vUv, time ) ), 1. );
+
+    gl_FragColor = color;
+
+}
+</script>
 
 <script>
 
@@ -32,7 +365,11 @@
 'use strict';
 
 var container, renderer, camera, controls, scene;
-var mesh;
+var orthoQuad, orthoCamera, orthoScene;
+var dofShader, finalShader;
+var mesh, material, depthMaterial;
+var resolution = new THREE.Vector2();
+var light1, light2, geometry;
 
 var helper;
 
@@ -43,58 +380,81 @@ var mScale = new THREE.Matrix4();
 var mTrans = new THREE.Matrix4();
 var euler = new THREE.Euler;
 
-function initScene() {
+var diffuseFBO, depthFBO, blurredFBO;
+var n = new ImprovedNoise();
 
-	var light = new THREE.SpotLight( 0x7cf0fa, 1, 100, .3 );
-	light.position.set( 10, 10, 10 );
-	scene.add( light );
-	light.castShadow = true;
+function createRenderTarget() {
 
-	var light = new THREE.SpotLight( 0x7bb7c4, 1, 100, .4 );
-	light.position.set( -10, 4, -1 );
-	scene.add( light );
-	light.castShadow = true;
-
-	var light = new THREE.SpotLight( 0x424cc7, 1, 100, .3 );
-	light.position.set( -10, -20, 10 );
-	scene.add( light );
-	light.castShadow = true;
-
-	var geometry = new THREE.IcosahedronBufferGeometry( 1, 1 );
-	var material = new THREE.MeshStandardMaterial( {
-		shading: THREE.FlatShading,
-		metalness: .2,
-		roughness: 0,
-		refractionRatio: .5
+	return new THREE.WebGLRenderTarget( 1, 1, {
+		wrapS: THREE.ClampToEdgeWrapping,
+		wrapT: THREE.ClampToEdgeWrapping,
+		format: THREE.RGBAFormat,
+		stencilBuffer: false,
+		depthBuffer: true
 	});
+
+}
+
+function createMineral( type ) {
+
+	if( mesh ) scene.remove( mesh );
+
+	light1.color.setHSL( Maf.randomInRange( 0, 1 ), Maf.randomInRange( .25, .75 ), .5 );
+	light2.color.setHSL( Maf.randomInRange( 0, 1 ), Maf.randomInRange( .25, .75 ), .5 );
+
+	var type = type || ( ~~Maf.randomInRange( 0, 3 ) + 1 );
+	switch( type ){
+		case 1:
+			geometry = new THREE.IcosahedronBufferGeometry( 1, 1 );
+			break;
+		case 2:
+			geometry = new THREE.BufferGeometry().fromGeometry( new THREE.CylinderGeometry( 1, 1, 2, 10, 1 ) );
+			geometry.applyMatrix( new THREE.Matrix4().makeRotationX( Math.PI / 2 ) );
+			break;
+		case 3:
+			geometry = new THREE.BufferGeometry().fromGeometry( new THREE.BoxGeometry( 1, 1, 1 ) );
+			break;
+	}
+
+	var number = ~~Maf.randomInRange( 50, 150 );
 
 	var c = geometry.attributes.position.count;
 	var finalGeometry = new THREE.BufferGeometry();
-	finalGeometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( c * 3 * 100 ), 3 ) );
-	finalGeometry.addAttribute( 'normal', new THREE.BufferAttribute( new Float32Array( c * 3 * 100 ), 3 ) );
-	finalGeometry.addAttribute( 'color', new THREE.BufferAttribute( new Float32Array( c * 3 * 100 ), 3 ) );
+	finalGeometry.addAttribute( 'position', new THREE.BufferAttribute( new Float32Array( c * 3 * number ), 3 ) );
+	finalGeometry.addAttribute( 'normal', new THREE.BufferAttribute( new Float32Array( c * 3 * number ), 3 ) );
 
 	var up = new THREE.Vector3( 0, 1, 0 );
 
-	for( var j = 0; j < 100; j++ ) {
+	var min = Maf.randomInRange( .5, 2 );
+	var max = min + Maf.randomInRange( 1, 3 );
+	var minOffset = Maf.randomInRange( .5, 1 );
+	var maxOffset = Maf.randomInRange( 1, 2 );
+
+	for( var j = 0; j < number; j++ ) {
 
 		var g = geometry.clone();
 		var sx = Maf.randomInRange( .1, 1 );
 		var sy = Maf.randomInRange( .1, 1 );
-		var sz = Maf.randomInRange( 2, 4 )
+		var sz = Maf.randomInRange( min, max )
 		mScale.makeScale( .5 * sx, .5 * sy, .5 * sz );
 		g.applyMatrix( mScale );
 
 		g.computeBoundingBox();
 		var z = g.boundingBox.max.z;
 
+		var offset = Maf.randomInRange( minOffset, maxOffset );
+
 		mTrans.identity();
-		mTrans.makeTranslation( 0, 0, z );
+		mTrans.makeTranslation( 0, 0, z * offset );
 		g.applyMatrix( mTrans );
 
 		mRot.identity();
 		mTrans.identity();
-		euler.set( Maf.randomInRange( 0, 2 * Math.PI ), Maf.randomInRange( 0, 2 * Math.PI ), Maf.randomInRange( 0, 2 * Math.PI ) );
+		euler.set(
+			Maf.randomInRange( 0, 2 * Math.PI ),
+			Maf.randomInRange( 0, 2 * Math.PI ),
+			Maf.randomInRange( 0, 2 * Math.PI )
+		);
 		mRot.makeRotationFromEuler( euler );
 		var d = Math.min( sx, sy );
 		var p = new THREE.Vector3( Maf.randomInRange( -d, d ),  Maf.randomInRange( -d, d ), Maf.randomInRange( -d, d ) );
@@ -105,7 +465,6 @@ function initScene() {
 
 	}
 
-	var n = new ImprovedNoise();
 	var r = .25;
 	var s = 10;
 	var d = finalGeometry.attributes.position.array;
@@ -123,37 +482,127 @@ function initScene() {
 		d[ j + 1 ] += dir.y;
 		d[ j + 2 ] += dir.z;
 	}
-	//finalGeometry.computeVertexNormals();
 
 	mesh = new THREE.Mesh( finalGeometry, material );
 	scene.add( mesh );
-	//mesh.visible = false
 
 	mesh.receiveShadow = true;
 	mesh.castShadow = true;
 
-	var loader = new THREE.TextureLoader();
-	loader.load( '../assets/pano-pedrera.jpg', function( res ) {
-
-		var equiToCube = new EquirectangularToCubemap( renderer );
-		mesh.material.envMap = equiToCube.convert( res, 1024 );
-		mesh.material.envMapIntensity = 1;
-		mesh.material.needsUpdate = true;
-
-	});
-
-	var linesMesh = new THREE.LineSegments(
+	/*var linesMesh = new THREE.LineSegments(
 
 		finalGeometry,
 
 		new THREE.LineBasicMaterial( {
 			color: 0xffffff,
 			transparent: true,
-			opacity: 0.35
+			opacity: 0.15
 		} )
 
 	);
-	scene.add( linesMesh );
+	scene.add( linesMesh );*/
+
+}
+
+function initScene() {
+
+	var light = new THREE.HemisphereLight( 0, 0x808080, .1 );
+	scene.add( light );
+	//light.color.setHSL( Maf.randomInRange( 0, 1 ), Maf.randomInRange( .25, .75 ), .5 );
+	//light.groundColor.setHSL( Maf.randomInRange( 0, 1 ), Maf.randomInRange( .25, .75 ), .5 );
+
+	light1 = new THREE.SpotLight( 0xff00ff, .5, 400, .3, 1 );
+	light1.position.set( 10, 10, 10 );
+	scene.add( light1 );
+	light1.castShadow = true;
+
+	light2 = new THREE.SpotLight( 0xff00ff, 1, 400, .4, 1 );
+	light2.position.set( -10, 4, -1 );
+	scene.add( light2 );
+	light2.castShadow = true;
+
+	var light3 = new THREE.SpotLight( 0x424cc7, 1, 400, .3, 1 );
+	light3.position.set( -10, -20, 10 );
+	//scene.add( light3 );
+	light3.castShadow = true;
+
+	renderer.render( scene, camera );
+
+	helper.attach( light1.shadow.map, 'light1' );
+	helper.attach( light2.shadow.map, 'light2' );
+	//helper.attach( light3.shadow.map, 'light3' );
+
+	geometry = new THREE.IcosahedronBufferGeometry( 1, 1 );
+	material = new THREE.MeshStandardMaterial( {
+		shading: THREE.FlatShading,
+		metalness: .2,
+		roughness: .5,
+		refractionRatio: .5
+	});
+
+	depthMaterial = new THREE.RawShaderMaterial({
+		vertexShader: document.getElementById( 'depth-vs' ).textContent,
+		fragmentShader: document.getElementById( 'depth-fs' ).textContent,
+		side: THREE.FrontSide
+	});
+
+	var bkg = new THREE.Mesh( new THREE.IcosahedronBufferGeometry( 10, 3 ), new THREE.MeshStandardMaterial( { side: THREE.DoubleSide }) );
+	scene.add( bkg );
+	bkg.receiveShadow = true;
+
+	var loader = new THREE.TextureLoader();
+	loader.load( '../assets/cave.jpg', function( res ) {
+
+		createMineral( 1 );
+
+		var equiToCube = new EquirectangularToCubemap( renderer );
+		mesh.material.envMap = equiToCube.convert( res, 1024 );
+		mesh.material.envMapIntensity = .5;
+		mesh.material.needsUpdate = true;
+
+		animate();
+
+		document.getElementById( 'refreshBtn' ).addEventListener( 'click', function( e ){
+			createMineral();
+		});
+
+	});
+
+	diffuseFBO = createRenderTarget();
+	depthFBO = createRenderTarget();
+	blurredFBO = createRenderTarget();
+
+	helper.attach( diffuseFBO, 'diffuse' );
+	helper.attach( depthFBO, 'depth' );
+	helper.attach( blurredFBO, 'blurred' );
+
+	dofShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			inputTexture: { type: 't', value: diffuseFBO.texture },
+			depthTexture: { type: 't', value: depthFBO.texture },
+			resolution: { type: 'v2', value: resolution }
+		},
+		vertexShader: document.getElementById('ortho-vs').textContent,
+		fragmentShader: document.getElementById('poisson-fs').textContent,
+	} );
+
+	finalShader = new THREE.RawShaderMaterial( {
+		uniforms: {
+			inputTexture: { type: 't', value: blurredFBO.texture },
+			resolution: { type: 'v2', value: resolution },
+			boost: { type: 'f', value: 1 },
+			reduction: { type: 'f', value: 1.2 },
+			amount: { type: 'f', value: .05 },
+			time: { type: 'f', value: 0 }
+		},
+		vertexShader: document.getElementById('ortho-vs').textContent,
+		fragmentShader: document.getElementById('final-fs').textContent,
+	} );
+
+	orthoScene = new THREE.Scene();
+	orthoCamera = new THREE.OrthographicCamera( 1 / - 2, 1 / 2, 1 / 2, 1 / - 2, .00001, 1000 );
+	orthoQuad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1 ), dofShader );
+	orthoScene.add( orthoQuad );
 
 }
 
@@ -163,28 +612,34 @@ function init() {
 
 	scene = new THREE.Scene();
 
-	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .01, 1000 );
 	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 20 );
+	camera.position.set( 0, 0, 7.5 );
 	camera.lookAt( camera.target );
 	scene.add( camera );
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
-	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x261b1f, 1 );
+	renderer.setPixelRatio( .5 * window.devicePixelRatio );
+	renderer.setClearColor( 0, 1 );
 	container.appendChild( renderer.domElement );
 
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
+	helper = new FBOHelper( renderer );
+	helper.show( false );
+
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	controls.zoomSpeed = .5;
+	controls.maxDistance = 9
+	controls.minDistance = 5
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	initScene();
 	onWindowResized();
 
 	window.addEventListener( 'resize', onWindowResized );
-
-	animate();
 
 }
 
@@ -197,6 +652,26 @@ function onWindowResized( event ) {
 	camera.aspect = w / h;
 	camera.updateProjectionMatrix();
 
+	helper.setSize( w, h );
+
+	var sW = Maf.nextPowerOfTwo( w ) / 2;
+	var sH = Maf.nextPowerOfTwo( h ) / 2;
+
+	var dPR = renderer.getPixelRatio();
+	resolution.set( w * dPR, h * dPR );
+
+	diffuseFBO.setSize( w * dPR, h * dPR );
+	depthFBO.setSize( sW, sH );
+	blurredFBO.setSize( w * dPR, h * dPR );
+
+	orthoQuad.scale.set( w, h, 1 );
+
+	orthoCamera.left   = - w / 2;
+	orthoCamera.right  =   w / 2;
+	orthoCamera.top    =   h / 2;
+	orthoCamera.bottom = - h / 2;
+	orthoCamera.updateProjectionMatrix();
+
 }
 
 function animate() {
@@ -204,9 +679,24 @@ function animate() {
 	requestAnimationFrame( animate );
 
 	controls.update();
-	//mesh.rotation.y += .01;
+	mesh.rotation.y += .01;
 
-	renderer.render( scene, camera );
+	renderer.setClearColor( 0xffffff );
+	//mesh.material = depthMaterial
+	scene.overrideMaterial = depthMaterial;
+	renderer.render( scene, camera, depthFBO );
+	renderer.setClearColor( 0 );
+	//mesh.material = material
+	scene.overrideMaterial = null;
+	renderer.render( scene, camera, diffuseFBO );
+
+	orthoQuad.material = dofShader;
+	renderer.render( orthoScene, orthoCamera, blurredFBO );
+	orthoQuad.material = finalShader;
+	finalShader.uniforms.time.value = .001 * performance.now();
+	renderer.render( orthoScene, orthoCamera );
+
+	helper.update();
 
 }
 
