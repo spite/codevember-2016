@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>GPU-powered Genetic Algorithm</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../11" >Previous</a> | <a href="../13" >Next</a></p>
+			<h1>5. GPU-powered Genetic Algorithm</h1>
+			<p id="moreDetails"><b>More details...</b></p>
+			<div id="details" class="hidden">
+				<p>Using <b>ShaderTexture</b> to create a diffuse texture (using <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a>'s implementation of <a href="https://en.wikipedia.org/wiki/Wang_tile">Wang Tiles</a>) and a roughness texture (using the diffuse texture to modulate some noise), then again using the diffuse texture as a height map to turn it into a normal map (using a shader based on <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a>).</p>
+				<p>The maps are then used as diffuse, roughness, metalness, bump and normal maps of a THREE.MeshStandardMaterial.</p>
+				<p><b>Credits</b></p>
+				<p>Tiles shader from <a href="https://www.shadertoy.com/view/4st3R7" >TruchetFlip</a> by <b>jt</b> from ShaderToy.<br/>Heightmap to normal shader adapted from <a href="http://cpetry.github.io/NormalMap-Online/" >NormalMap Online</a></p>
+			</div>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+
+<script type="x-shader/x-vertex" id="ortho-vs">
+precision highp float;
+
+attribute vec3 position;
+attribute vec2 uv;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec2 vUv;
+
+void main() {
+
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1. );
+
+}
+
+</script>
+
+<script type="x-shader/x-fragment" id="fitness-fs">
+#define W 256
+#define H 256
+
+precision highp float;
+
+uniform sampler2D texture;
+uniform sampler2D reference;
+uniform vec2 dimensions;
+
+varying vec2 vUv;
+
+void main() {
+
+	float sum = 0.;
+	vec3 delta;
+
+	for( int y = 0; y < H; y++ ) {
+		for( int x = 0; x < W; x++ ) {
+			vec2 uv = vec2( float( x ) / float( W ), float( y ) / float( H ) );
+			delta = abs( texture2D( texture, uv ).rgb - texture2D( reference, uv ).rgb );
+			sum += delta.r * delta.r + delta.g * delta.g + delta.b * delta.b;
+		}
+	}
+
+	gl_FragColor = vec4( sum, 0., 0., 1. );
+}
+
+</script>
+
+<script type="x-shader/x-fragment" id="draw-fs">
+precision highp float;
+
+uniform sampler2D texture;
+
+varying vec2 vUv;
+
+void main() {
+
+	vec2 uv = vUv;
+	uv.y = 1. - uv.y;
+	vec4 c = texture2D( texture, uv );
+	gl_FragColor = c;
+
+}
+
+</script>
+
+<script type="x-shader/x-vertex" id="render-vs">
+precision highp float;
+
+attribute vec3 position;
+attribute vec4 color;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+varying vec4 vColor;
+
+void main() {
+
+	vColor = color;
+
+	gl_Position = vec4( position.xyz, 1. );
+
+}
+
+</script>
+
+<script type="x-shader/x-vertex" id="render-fs">
+precision highp float;
+
+varying vec4 vColor;
+
+void main() {
+
+	gl_FragColor = vColor;
+
+}
+
+</script>
+
+<script>
+
+// http://alteredqualia.com/visualization/evolve/
+
+'use strict';
+
+var container, renderer, camera, controls, scene, geometry, bestGeometry;
+var mesh, framebuffer, drawShader, fitnessFramebuffer, fitnessShader;
+var orthoScene, orthoCamera, orthoQuad;
+
+var workingPositions, workingColors;
+var bestPositions, bestColors;
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function initScene() {
+
+	var reference = new THREE.TextureLoader().load( '../assets/mona-lisa-256x256.jpg', function() {
+
+		var triangles = 500;
+
+		framebuffer = new THREE.WebGLRenderTarget( reference.image.width, reference.image.height );
+		fitnessFramebuffer = new THREE.WebGLRenderTarget( 1, 1, {
+			format: THREE.RGBAFormat,
+			type: THREE.FloatType
+		} );
+
+
+		helper.attach( reference, 'reference' );
+		helper.attach( framebuffer, 'draw' );
+		helper.attach( fitnessFramebuffer, 'fitness' );
+
+		geometry = new THREE.BufferGeometry();
+		workingColors = new Float32Array( triangles * 3 * 4 );
+		workingPositions = new Float32Array( triangles * 3 * 3 );
+		bestColors = new Float32Array( triangles * 3 * 4 );
+		bestPositions = new Float32Array( triangles * 3 * 3 );
+
+		for( var j = 0, ptr = 0, ptr2 = 0; j < triangles * 3; j++, ptr += 3, ptr2 += 4 ) {
+
+			workingPositions[ ptr ] = Maf.randomInRange( -1, 1 );
+			workingPositions[ ptr + 1 ] = Maf.randomInRange( -1, 1 );
+			workingPositions[ ptr + 2 ] = Maf.randomInRange( -1, 1 );
+
+			bestPositions[ ptr ] = workingPositions[ ptr ];
+			bestPositions[ ptr + 1 ] = workingPositions[ ptr + 1 ];
+			bestPositions[ ptr + 2 ] = workingPositions[ ptr + 2 ];
+
+			workingColors[ ptr2 ] = 0;
+			workingColors[ ptr2 + 1 ] = 0;
+			workingColors[ ptr2 + 2 ] = 0;
+			workingColors[ ptr2 + 3 ] = 1;
+
+			bestColors[ ptr ] = workingColors[ ptr ];
+			bestColors[ ptr + 1 ] = workingColors[ ptr + 1 ];
+			bestColors[ ptr + 2 ] = workingColors[ ptr + 2 ];
+			bestColors[ ptr + 3 ] = workingColors[ ptr + 3 ];
+
+		}
+
+		geometry.addAttribute( 'position', new THREE.BufferAttribute( workingPositions, 3 ) );
+		geometry.addAttribute( 'color', new THREE.BufferAttribute( workingColors, 4 ) );
+
+		var material = new THREE.RawShaderMaterial({
+			vertexShader: document.getElementById( 'render-vs' ).textContent,
+			fragmentShader: document.getElementById( 'render-fs' ).textContent,
+			side: THREE.DoubleSide,
+			transparent: true
+		})
+
+		var triangleMesh = new THREE.Mesh( geometry, material );
+		scene.add( triangleMesh );
+
+		drawShader = new THREE.RawShaderMaterial( {
+			uniforms: {
+				texture: { type: 't', value: framebuffer.texture }
+			},
+			vertexShader: document.getElementById( 'ortho-vs' ).textContent,
+			fragmentShader: document.getElementById( 'draw-fs' ).textContent,
+			side: THREE.DoubleSide
+		} );
+
+		fitnessShader = new THREE.RawShaderMaterial( {
+			uniforms: {
+				reference: { type: 't', value: reference },
+				texture: { type: 't', value: framebuffer.texture }
+			},
+			vertexShader: document.getElementById( 'ortho-vs' ).textContent,
+			fragmentShader: document.getElementById( 'fitness-fs' ).textContent,
+			side: THREE.DoubleSide
+		} );
+
+		orthoScene = new THREE.Scene();
+		orthoCamera = new THREE.OrthographicCamera( -reference.image.width / 2, reference.image.width / 2, -reference.image.height / 2, reference.image.height / 2, -1000, 1000 );
+		orthoQuad = new THREE.Mesh( new THREE.PlaneBufferGeometry( reference.image.width, reference.image.height ), drawShader );
+		orthoScene.add( orthoQuad );
+
+		animate();
+
+	} );
+
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 20 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: false, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0, 1 );
+	container.appendChild( renderer.domElement );
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
+
+	helper = new FBOHelper( renderer );
+	helper.hide();
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	window.addEventListener( 'resize', onWindowResized );
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+	helper.setSize( w, h );
+
+}
+
+var buffer = new Float32Array( 4 );
+var oldFitness = 256*256*3;
+var fitness = 0;
+var generations = 0;
+
+function memcpy(dst, dstOffset, src, srcOffset, length) {
+	var dstU8 = new Float32Array(dst, dstOffset, length);
+	var srcU8 = new Float32Array(src, srcOffset, length);
+	dstU8.set(srcU8);
+};
+
+function copy( src, dst ) {
+
+	for( var j = 0; j < src.length; j++ ) {
+		dst[ j ] = src[ j ];
+	}
+
+}
+
+function mutate( geometry ) {
+
+	//memcpy( geometry.attributes.position.array, 0, bestPositions, 0, bestPositions.length );
+	//memcpy( geometry.attributes.color.array, 0, bestColors, 0, bestColors.length );
+
+	copy( bestPositions, geometry.attributes.position.array );
+	copy( bestColors, geometry.attributes.color.array );
+
+	geometry.attributes.position.needsUpdate = true;
+	geometry.attributes.color.needsUpdate = true;
+
+	if( Math.random() > .5 ) {
+		var p = ~~Maf.randomInRange( 0, geometry.attributes.position.array.length );
+		geometry.attributes.position.array[ p ] = Maf.randomInRange( -1, 1 );
+	} else {
+		var p = ~~Maf.randomInRange( 0, geometry.attributes.color.array.length );
+		geometry.attributes.color.array[ p ] = Maf.randomInRange( 0, 1 );
+	}
+
+}
+
+function proliferate() {
+
+	var tmp = bestGeometry;
+	bestGeometry = geometry;
+	geometry = bestGeometry;
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	mutate( geometry );
+
+	renderer.render( scene, camera, framebuffer );
+	orthoQuad.material = fitnessShader;
+	renderer.render( orthoScene, orthoCamera, fitnessFramebuffer );
+
+	renderer.readRenderTargetPixels( fitnessFramebuffer, 0, 0, 1, 1, buffer );
+	fitness = buffer[ 0 ];
+
+	orthoQuad.material = drawShader;
+	renderer.render( orthoScene, orthoCamera );
+
+	helper.update();
+
+	generations++;
+
+	if( fitness < oldFitness ) {
+
+		console.log( 'New fitness', fitness / ( 256 * 256* 3 ) );
+		copy( geometry.attributes.position.array, bestPositions );
+		copy( geometry.attributes.color.array, bestColors );
+
+		oldFitness = fitness;
+
+	}
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
