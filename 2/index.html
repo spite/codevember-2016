@@ -33,6 +33,7 @@
 
 <script src="../js/three.js"></script>
 <script src="../js/OrbitControls.js"></script>
+<script src="../js/DeviceOrientationControls.js"></script>
 <script src="../js/Common.js"></script>
 <script src="../js/isMobile.min.js"></script>
 
@@ -95,7 +96,7 @@
 
 var container, renderer, camera, controls, scene;
 var mesh, dummy = new THREE.Object3D();
-var cameraType = 0;
+var cameraType = 0, cameraDummy = new THREE.Object3D();
 
 var helper;
 
@@ -266,9 +267,11 @@ function init() {
 
 	scene = new THREE.Scene();
 
+	scene.add( cameraDummy );
+
 	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 1000 );
 	camera.position.set( 0, 0, 125 );
-	scene.add( camera );
+	cameraDummy.add( camera );
 
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
@@ -280,14 +283,29 @@ function init() {
 
 	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
-	controls = new THREE.OrbitControls( camera, renderer.domElement );
-	controls.zoomSpeed = .1;
+	if( isMobile.any ) {
+		controls = new THREE.DeviceOrientationControls( camera );
+	} else {
+		controls = new THREE.OrbitControls( camera, renderer.domElement );
+		controls.zoomSpeed = .1;
+	}
 
 	initScene();
 	onWindowResized();
 
 	document.getElementById( 'toggleBtn' ).addEventListener( 'click', function( e ) {
 		cameraType = 1 - cameraType;
+
+		if( cameraType === 0 ) {
+			cameraDummy.position.set( 0,0,0 );
+			cameraDummy.rotation.set( 0,0,0 );
+			camera.position.z = 125;
+		} else {
+			cameraDummy.position.set( 61.01643532501035, -16.024913002353067, 85.53842635074523 );
+			cameraDummy.rotation.set( 0, 1.9, 1.6 );
+			camera.position.z = 1;
+		}
+
 	});
 
 	window.addEventListener( 'keydown', function( e ) {
@@ -315,12 +333,8 @@ function animate() {
 
 	requestAnimationFrame( animate );
 
-	if( cameraType === 0 ) {
-		controls.update();
-	} else {
-		camera.position.set( 61.01643532501035, -16.024913002353067, 85.53842635074523 );
-		camera.rotation.set( 0, 1.9, 1.6 );
-	}
+	controls.update();
+
 	mesh.rotation.y = .0001 * performance.now();
 
 	renderer.render( scene, camera );
