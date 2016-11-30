@@ -186,8 +186,8 @@ var container, renderer, camera, controls, scene;
 var mesh, world = new THREE.Object3D();
 
 var container = document.getElementById( 'container' );
-var centerDummy = new THREE.Mesh( new THREE.IcosahedronBufferGeometry(1,3), new THREE.MeshNormalMaterial() );
-var targetDummy = new THREE.Mesh( new THREE.BoxBufferGeometry(1,1,1), new THREE.MeshNormalMaterial() );
+var centerDummy = new THREE.Mesh( new THREE.IcosahedronBufferGeometry(1,3), new THREE.MeshBasicMaterial( { color: 0xffffff }) );
+var targetDummy = new THREE.Mesh( new THREE.IcosahedronBufferGeometry(1,2), new THREE.MeshBasicMaterial( { color: 0xffffff }) );
 var cameraDummy = new THREE.Object3D();
 
 var intersectPlane = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1000, 1000 ), new THREE.MeshBasicMaterial() );
