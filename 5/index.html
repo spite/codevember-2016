@@ -8,9 +8,6 @@
 		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
 		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
 
-		<style>
-		#fboh-fbos-list{ display: none !important; }
-		</style>
 	</head>
 	<body>
 
@@ -21,7 +18,13 @@
 			<p>Creating a particle system with motion blur as a post-processing effect.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
-			<p><b>Credits</b></p>
+				<p>The particles positions are stored in an RGBA texture (xyz and previous z). The particles texture is updated in the CPU with a plasma function (several linear and circular gradients added), keeping the x and y in their gridded position, and moving the z axis.</p>
+				<p>The particles geometry are merged into a single geometry (no instancing). There's a shader for the diffuse data, and another for the motion data; both will be used in the motion blur pass. Both vertex shader take the particle position and move the sphere geometry to the correct location. The color fragment shader outputs color based on z position. The motion vertex shader calculates the direction vector and elongates the sphere in that direction (comparing the dot product of the vertex normal with the direction); its fragment shader then outputs the screen-space velocity of the particle.</p>
+				<p>The last pass, gathers both buffers and performs a blur averagin 20 samples from the color buffer in the direction of the data in the motion buffer.</p>
+				<p>Type <span class="code" >helper.show(true)</span> in the console to see the framebuffers.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by <a href="https://twitter.com/archillect/status/797126765948837889" >this animation</a> and based on this <a href="http://http.developer.nvidia.com/GPUGems3/gpugems3_ch27.html" >Motion Blur as a Post-Processing Effect NVIDIA GPU Gem</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, ImprovedNoise.js and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
@@ -217,16 +220,20 @@ function memcpy (src, srcOffset, dst, dstOffset, length) {
 
 function createRenderTarget() {
 
+	var type = THREE.FloatType;
+	if( renderer.extensions.get( 'OES_texture_float_linear' ) === null ) type = THREE.HalfFloatType;
+
 	var rt = new THREE.WebGLRenderTarget( 1, 1, {
 		wrapS: THREE.ClampToEdgeWrapping,
 		wrapT: THREE.ClampToEdgeWrapping,
 		format: THREE.RGBAFormat,
-		type: THREE.HalfFloatType,
-		minFilter: THREE.LinearFilter,
-		magFilter: THREE.LinearFilter,
+		type: type,
+		minFilter: THREE.NearestFilter,
+		magFilter: THREE.NearestFilter,
 		stencilBuffer: false,
 		depthBuffer: true
 	});
+	rt.texture.generateMipmaps = false;
 
 	return rt;
 
@@ -332,6 +339,7 @@ function init() {
 	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	helper = new FBOHelper( renderer );
+	helper.show( false );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
 
@@ -385,6 +393,9 @@ function onWindowResized( event ) {
 
 	diffuseFBO.setSize( w, h );
 	motionFBO.setSize( w / 4, h / 4 );
+
+	helper.refreshFBO( diffuseFBO );
+	helper.refreshFBO( motionFBO );
 
 	resolution.set( w, h );
 
