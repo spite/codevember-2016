@@ -15,8 +15,15 @@
 		<div id="info" >
 			<p><a href="../25" >Previous</a> | <a href="../27" >Next</a></p>
 			<h1>26. Volumetric rendering</h1>
+			<p>Raymarching through 3D functions</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>This experiment uses the technique of rendering view positions of a shell (a cube, or a sphere), in a rendertarget. One with the back face (interior of the shell), and another with the front face (sides facing the camera).</p>
+				<p>With that information, a shader can calculate a ray for each point in the screen that crosses the volume, and use that ray to step through a 3D field (or a 3D texture).</p>
+				<p>In this case is a turbulent field made of several scales of perlin noise.</p>
+				<p><b>Credits</b></p>
+				<p>I think the first time i saw this technique was at The Little Grasshoper's <a href="http://prideout.net/blog/?p=64" >Single-Pass Raycasting</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/kaimallea/isMobile">isMobile.js</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 		</div>
