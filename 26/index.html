@@ -335,11 +335,14 @@ function createRenderTarget() {
 
 function createFBO() {
 
+	var type = THREE.FloatType;
+	if( renderer.extensions.get( 'OES_texture_float_linear' ) === null ) type = THREE.HalfFloatType;
+
 	return new THREE.WebGLRenderTarget( 1, 1, {
 		wrapS: THREE.ClampToEdgeWrapping,
 		wrapT: THREE.ClampToEdgeWrapping,
 		format: THREE.RGBAFormat,
-		type: THREE.HalfFloatType,
+		type: type,
 		stencilBuffer: false,
 		depthBuffer: false
 	});
