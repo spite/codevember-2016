@@ -1,4 +1,4 @@
-<!doctype html>
+ <!doctype html>
 <html lang="en">
 	<head>
 		<title>Numerical renderer</title>
@@ -293,6 +293,8 @@ function init() {
 	helper.show( false );
 
 	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	initScene();
 	onWindowResized();
