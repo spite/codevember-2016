@@ -6,17 +6,33 @@
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
 		<link rel="stylesheet" type="text/css" href="css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css?family=Lato:100,200,400|Playfair+Display:700" rel="stylesheet">
 
 		<style>
-		body{ overflow: auto; }
+		html{
+    -moz-user-select: auto;
+    -khtml-user-select: auto;
+    -webkit-user-select: auto;
+    -ms-user-select: auto;
+    user-select: auto;
+		}
+		body{ overflow: auto; font-weight: 200;}
 		section{ padding: 40px 0; position: absolute; }
-		h1{ font-family: 'Playfair Display', serif; font-size: 30px; margin-bottom: 1em; }
+		h1{ font-family: 'Playfair Display', serif; font-size: 30px; margin-bottom: .5em; }
 		h2{ font-family: 'Playfair Display', serif; font-size: 16px;}
-		#intro{ margin-bottom: 2em;}
+		#intro{ margin-top: 2em;margin-bottom: 2em; max-width: 600px;}
+		#intro p{ margin-bottom: 1em; }
 		li{ width: 300px; height: 140px; float: left; padding: 2px; cursor: pointer; }
 		li h2{ position: absolute; left: 20px; top: 20px; right: 20px; }
-		li div{ border: 1px solid rgba( 255, 255, 255, .4 ); position: relative; width: 100%; height: 100%; transition: border 250ms ease-out; overflow: hidden;}
+		li p, li h2{ z-index: 100 }
+		li div{ border: 1px solid rgba( 0,0,0, 1 ); position: relative; width: 100%; height: 100%; transition: border 250ms ease-out; overflow: hidden; background-image: url(assets/poster.jpg);}
+		li div .overlay{ position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+		/* Permalink - use to edit and share this gradient: http://colorzilla.com/gradient-editor/#000000+0,000000+100&0+0,1+100 */
+background: -moz-radial-gradient(center, ellipse cover, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 100%); /* FF3.6-15 */
+background: -webkit-radial-gradient(center, ellipse cover, rgba(0,0,0,0) 0%,rgba(0,0,0,1) 100%); /* Chrome10-25,Safari5.1-6 */
+background: radial-gradient(ellipse at center, rgba(0,0,0,0) 0%,rgba(0,0,0,1) 100%); /* W3C, IE10+, FF16+, Chrome26+, Opera12+, Safari7+ */
+filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#00000000', endColorstr='#000000',GradientType=1 ); /* IE6-9 fallback on horizontal gradient */
+}
 		li.disabled{ cursor: default; opacity: .1;}
 		li:not(.disabled):hover div{ border: 1px solid rgba( 255, 255, 255, 1 ); }
 		li p{ position: absolute; left: 20px; bottom: 20px; right: 20px;}
@@ -24,7 +40,7 @@
 		canvas{ position: fixed; left: 0; top: 0; right: 0; bottom: 0; }
 		.break{ clear: both;}
 		a{ color: inherit; }
-		.number{ position: absolute; left: 0; right: 0; text-align: center; top: 50%; font-size: 240px; line-height: 0; opacity: .1;}
+		.number{ position: absolute; left: 0; right: 0; text-align: center; top: 50%; font-size: 240px; line-height: 0; opacity: .1; font-weight: 100 }
 		</style>
 
 	</head>
@@ -33,10 +49,23 @@
 	<section>
 
 		<h1>Codevember 2016</h1>
+		<p>Jaume Sanchez Elias · <a href="https://twitter.com/thespite" >@thespite</a></p>
 
 		<div id="intro">
-			<p>This page is still a <b>work in progress</b></p>
+
+			<p>This are the projects created for Codevember 2016 -a challenge for developers creating a creative sketch by day during the whole month of November.</p>
+
+			<p>Initially I wanted to mix very different browsers technologies: CSS, SVG, WebGL, and not limited to just visual effects. In the end i went with WebGL + three.js, creating a basic boilerplate and starting from scratch every project. Of course as I went, the toolbox grew considerably, with things like ShaderTexture, Odeo and a lot of shaders and helper methods.</p>
+
+			<p>I've tried to make all sites work in as many platforms as possible, but the time constrains don't allow for a lot of beta testing and bug hunting. Wobbly Earth, for instance, doesn't work on my Nexus 5, but works everywhere else I've tried. I have reports that Lines in a Sphere doesn't go well with MacBook Airs. If you find any issue and want to help debug, <a href="https://twitter.com/thespite" >tweet me</a>.</p>
+
+			<p>So this is all I've been able to churn out, between work, two kids, broken eyeglasses...<br/>Just don't judge the code too strictly :)</p>
+
+			<p><b>Inside info:</b> in all the effects with music (10, 16 and 30) you can open the console and run <span class="code" >odeo.playSoundCloud( "whatever_soundcloud_url" )</span> and you can change the track.</p>
+			<p><b>Even more inside info:</b> in all the effects with FBOS, shadows, etc. you can probably open the console and run <span class="code" >helper.show(true)</span> to see the FBOHelper.</p>
+
 			<p><b>Source code</b> for all experiments -and discarded ones- is here: <a href="https://github.com/spite/codevember-2016" >codevember-2016</a></p>
+
 		</div>
 
 		<ul id="entries">
@@ -73,7 +102,7 @@
 			<li>
 				<div>
 					<h2>Wobbly Earth</h2>
-					<p>The day the Earth didn't stood still</p>
+					<p>The day the Earth didn't stand still</p>
 				</div>
 			</li>
 			<li>
@@ -238,10 +267,21 @@ var panels = [].slice.call( document.querySelectorAll( '#entries li div' ) );
 
 entries.forEach( function( entry, id ) {
 
+	var div = entry.querySelector( 'div' );
+
+	var overlay = document.createElement( 'div' );
+	overlay.className = 'overlay';
+	div.appendChild( overlay );
+
 	var span = document.createElement( 'span' );
 	span.className = 'number';
 	span.textContent = id + 1;
-	entry.querySelector( 'div' ).appendChild( span );
+	div.appendChild( span );
+
+	div.style.backgroundSize = '500% 1250%';
+	var x = id % 5;
+	var y = Math.floor ( id / 5 );
+	div.style.backgroundPosition = -( x * 294 ) + 'px ' + ( - y * 280 - 70 ) + 'px';
 
 	if( entry.getAttribute( 'data-disabled' ) === null ) {
 		entry.addEventListener( 'click', function( e ) {
