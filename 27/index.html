@@ -15,8 +15,19 @@
 		<div id="info" >
 			<p><a href="../26" >Previous</a> | <a href="../28" >Next</a></p>
 			<h1>27. Medusa</h1>
+			<p>Some test with a jellyfish-like creature.</p>
+			<p>The idea was to create those tentacles following a path.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
+				<p>The tentacles are created following a perlin noise function. The points created with this function are used with a TubeGeometry to create a tentacle. This version uses a modified three.js version to add a radius function, so it can be tapered.</p>
+				<p>The cap is done with a Lathe geometry, and the shape is created with a THREE.ConstantSpline.</p>
+				<p>All geometries are merged into one.</p>
+				<p>The shading is made in different parts. There's one pass that exports diffuse color in the red channel, eye-space depth in the green channel and rim lighting in the blue channel; all that goes to the base fbo. With a MeshStandardMaterial, the same scene is rendered with shadows to a shadow buffer. Both textures are then combined in a shader to create a blue-tinted image with different properties.</p>
+				<p>The same buffer is downscaled and processed with a poisson-disc-based blur, and another shader takes the combined and the blurred fbos, and blends them according to the pixels distance from the camera. It finally also adds some vignette. There's no need for FXAA in this one.</p>
+				<p>There's a discarded shader that took the diffuse map and blurred it into a diagonal effect to simulate dark underwater shadows, but it didn't look quite right.</p>
+				<p><b>Credits</b></p>
+				<p>Inspired by <a href="https://pbs.twimg.com/media/CnQE_S5XYAAzIvF.jpg" >this image</a>.</p>
+				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, <a href="https://github.com/spite/THREE.ConstantSpline" >THREE.ConstantSpline</a> and <a href="https://github.com/spite/Maf.js/tree/master" >Maf.js</a></p>
 			</div>
 			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
 			<p><b>Credits</b><p>
@@ -597,7 +608,6 @@ function init() {
 		fragmentShader: document.getElementById( 'medusa-fs' ).textContent,
 		transparent: true
 	});
-	//medusaMaterial = shadowMaterial;
 
 	initScene();
 	onWindowResized();
