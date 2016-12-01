@@ -14,9 +14,9 @@
 		h1{ font-family: 'Playfair Display', serif; font-size: 30px; margin-bottom: 1em; }
 		h2{ font-family: 'Playfair Display', serif; font-size: 16px;}
 		#intro{ margin-bottom: 2em;}
-		li{ width: 300px; height: 140px; float: left; padding: 2px; cursor:pointer;}
+		li{ width: 300px; height: 140px; float: left; padding: 2px; cursor: pointer; }
 		li h2{ position: absolute; left: 20px; top: 20px; right: 20px; }
-		li div{ border: 1px solid rgba( 255, 255, 255, .4 ); position: relative; width: 100%; height: 100%; transition: border 250ms ease-out;}
+		li div{ border: 1px solid rgba( 255, 255, 255, .4 ); position: relative; width: 100%; height: 100%; transition: border 250ms ease-out; overflow: hidden;}
 		li.disabled{ cursor: default; opacity: .1;}
 		li:not(.disabled):hover div{ border: 1px solid rgba( 255, 255, 255, 1 ); }
 		li p{ position: absolute; left: 20px; bottom: 20px; right: 20px;}
@@ -24,6 +24,7 @@
 		canvas{ position: fixed; left: 0; top: 0; right: 0; bottom: 0; }
 		.break{ clear: both;}
 		a{ color: inherit; }
+		.number{ position: absolute; left: 0; right: 0; text-align: center; top: 50%; font-size: 240px; line-height: 0; opacity: .1;}
 		</style>
 
 	</head>
@@ -162,55 +163,61 @@
 			<li>
 				<div>
 					<h2>Numerical renderer</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>Rendering with numbers (very digital!)</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>Line thickness</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>Creating an engraving effect with shaders</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>Emitter</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>Weird thing that started as a particle emitter and ended up like Matrix sentinels</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>AO Spheres</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>Boids and soft shadows and analytical ambient occlusion</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>Lines</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>More lines and feedback effect</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>Volumetric rendering</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>March your ray through a cloud</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>Medusa</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>Random jellyfish-like objects</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>Greeble AO</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>Rotating greeble, with SSAO</p>
 				</div>
 			</li>
 			<li>
 				<div>
 					<h2>Bands</h2>
-					<p>Lines and streaks moving in the surface of a sphere</p>
+					<p>Twisty pieces of sliced floor</p>
+				</div>
+			</li>
+			<li>
+				<div>
+					<h2>Triangle tunnel</h2>
+					<p>A WebGL remake of GMUNK's PYRADICAL</p>
 				</div>
 			</li>
 
@@ -230,6 +237,11 @@ var entries = [].slice.call( document.querySelectorAll( '#entries li' ) );
 var panels = [].slice.call( document.querySelectorAll( '#entries li div' ) );
 
 entries.forEach( function( entry, id ) {
+
+	var span = document.createElement( 'span' );
+	span.className = 'number';
+	span.textContent = id + 1;
+	entry.querySelector( 'div' ).appendChild( span );
 
 	if( entry.getAttribute( 'data-disabled' ) === null ) {
 		entry.addEventListener( 'click', function( e ) {
