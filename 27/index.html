@@ -17,6 +17,7 @@
 			<h1>27. Medusa</h1>
 			<p>Some test with a jellyfish-like creature.</p>
 			<p>The idea was to create those tentacles following a path.</p>
+			<p><span class="action" id="generteBtn" >Click here</span> to generate a new one.</p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
 				<p>The tentacles are created following a perlin noise function. The points created with this function are used with a TubeGeometry to create a tentacle. This version uses a modified three.js version to add a radius function, so it can be tapered.</p>
@@ -426,6 +427,8 @@ function addTentacle( origin, direction ) {
 
 function createMedusa() {
 
+	if( medusaMesh ) scene.remove( medusaMesh );
+
 	var geometries = [];
 	var pos = new THREE.Vector3( 0, 0, 0 );
 
@@ -615,6 +618,12 @@ function init() {
 	addFullscreenShortcut( renderer.domElement, onWindowResized );
 
 	window.addEventListener( 'resize', onWindowResized );
+
+	document.getElementById( 'generteBtn' ).addEventListener( 'click', function( e ) {
+
+		createMedusa();
+
+	})
 
 	animate();
 
