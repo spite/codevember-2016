@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Medusa</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
+		<link href="https://fonts.googleapis.com/css?family=Roboto|Roboto+Slab" rel="stylesheet">
+
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info" >
+			<p><a href="../26" >Previous</a> | <a href="../28" >Next</a></p>
+			<h1>27. Medusa</h1>
+			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
+		</div>
+
+		<script src="../js/three.js"></script>
+		<script src="../js/OrbitControls.js"></script>
+		<script src="../js/Maf.js"></script>
+		<script src="../js/THREE.FBOHelper.js"></script>
+
+<script>
+
+// https://pbs.twimg.com/media/CnQE_S5XYAAzIvF.jpg
+// https://twitter.com/archillect/status/803299930957721600
+
+'use strict';
+
+var container, renderer, camera, controls, scene;
+var mesh, lines = [];
+
+var intersectPlane = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1000, 1000 ), new THREE.MeshBasicMaterial() );
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+var targetDummy = new THREE.Mesh( new THREE.IcosahedronBufferGeometry(1,2), new THREE.MeshBasicMaterial( { color: 0xffffff }) );
+
+var helper;
+
+var container = document.getElementById( 'container' );
+
+function initScene() {
+
+	scene.add( targetDummy );
+
+	var points = 10;
+	var geometry = new THREE.BufferGeometry();
+	var positions = new Float32Array( points * 3 );
+	for( var j = 0, ptr = 0; j < points; j++, ptr += 3 ) {
+		positions[ ptr ] = 0;
+		positions[ ptr + 1 ] = .1 * j;
+		positions[ ptr + 2 ] = 0;
+	}
+	geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+	var line = new THREE.Line( geometry, new THREE.LineBasicMaterial() );
+	scene.add( line );
+	lines.push( line );
+
+	var points = new THREE.PointCloud( geometry, new THREE.PointCloudMaterial() );
+	scene.add( points );
+
+}
+
+function init() {
+
+	container = document.getElementById( 'container' );
+
+	scene = new THREE.Scene();
+
+	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
+	camera.target = new THREE.Vector3( 0, 0, 0 );
+	camera.position.set( 0, 0, 200 );
+	camera.lookAt( camera.target );
+	scene.add( camera );
+
+	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
+	renderer.setPixelRatio( window.devicePixelRatio );
+	renderer.setClearColor( 0x261b1f, 1 );
+	container.appendChild( renderer.domElement );
+
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap;
+
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+	initScene();
+	onWindowResized();
+
+	container.addEventListener( 'mousemove', onMouseMove, false );
+/*	container.addEventListener( 'mousedown', onMouseDown, false );
+	container.addEventListener( 'mouseup', onMouseUp, false );
+	container.addEventListener( 'mouseout', onMouseUp, false );*/
+
+	container.addEventListener( 'touchmove', onMouseMove, false );
+/*	container.addEventListener( 'touchstart', onMouseDown, false );
+	container.addEventListener( 'touchend', onMouseUp, false );
+	container.addEventListener( 'touchcanel', onMouseUp, false );*/
+
+	window.addEventListener( 'resize', onWindowResized );
+
+	animate();
+
+}
+
+function onMouseMove( event ) {
+
+	var x = event.clientX || event.changedTouches[ 0 ].clientX;
+	var y = event.clientY || event.changedTouches[ 0 ].clientY;
+
+	mouse.x = ( x / renderer.domElement.clientWidth ) * 2 - 1;
+	mouse.y = - ( y / renderer.domElement.clientHeight ) * 2 + 1;
+	raycaster.setFromCamera( mouse, camera );
+
+}
+
+function onWindowResized( event ) {
+
+	var w = container.clientWidth;
+	var h = container.clientHeight;
+
+	renderer.setSize( w, h );
+	camera.aspect = w / h;
+	camera.updateProjectionMatrix();
+
+}
+
+var p1 = new THREE.Vector3();
+var p2 = new THREE.Vector3();
+var dir = new THREE.Vector3();
+var inc = new THREE.Vector3();
+
+function updateLine( line, position ) {
+
+	var positions = line.geometry.attributes.position;
+	var data = positions.array;
+
+	var t = .001 * performance.now();
+	var desired = 1;
+
+	for( var j = 1, ptr = 3; j < positions.count; j++, ptr += 3 ){
+		p1.set( data[ ptr - 3 ], data[ ptr - 3 + 1 ], data[ ptr - 3 + 2 ] );
+		if( j === 1 ) {
+			p1.copy( position );
+		}
+		p2.set( data[ ptr ], data[ ptr + 1 ], data[ ptr + 2 ] );
+		dir.copy( p1 ).sub( p2 );
+		var d = dir.length();
+		dir.normalize();
+		var dif = desired - d;
+		inc.copy( dir );
+		inc.multiplyScalar( 1. * dif );
+		p1.add( inc );
+		p2.sub( inc );
+
+		p1.y -= 1;
+		p2.y -= 1;
+
+		data[ ptr - 3 ] = p1.x;
+		data[ ptr - 3 + 1 ] = p1.y;
+		data[ ptr - 3 + 2 ] = p1.z;
+		data[ ptr ] = p2.x;
+		data[ ptr + 1 ] = p2.y;
+		data[ ptr + 2 ] = p2.z;
+
+	}
+	positions.needsUpdate = true;
+
+}
+
+function animate() {
+
+	requestAnimationFrame( animate );
+
+	controls.update();
+
+	intersectPlane.lookAt( camera.position );
+
+	var intersects = raycaster.intersectObject( intersectPlane );
+
+	if ( intersects.length > 0 ) {
+
+		targetDummy.position.copy( intersects[ 0 ].point );
+
+	}
+
+	lines.forEach( function( line ) {
+		updateLine( line, targetDummy.position );
+	})
+
+	renderer.render( scene, camera );
+
+}
+
+window.addEventListener( 'load', init );
+
+</script>
+
+	</body>
+</html>
