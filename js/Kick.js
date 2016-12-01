@@ -7,6 +7,7 @@ var Kick = function ( o, data ) {
 	this.offKick   = o.offKick;
 	this.isOn      = false;
 	this.currentThreshold = this.threshold;
+	this.value = 0;
 	this.fftData   = data;
 };
 
@@ -32,6 +33,7 @@ Kick.prototype = {
 	onUpdate : function () {
 		if ( !this.isOn ) { return; }
 		var magnitude = this.maxAmplitude( this.frequency, this.fftData );
+		this.value = magnitude;
 		if ( magnitude >= this.currentThreshold &&
 		    magnitude >= this.threshold ) {
 			this.currentThreshold = magnitude;
