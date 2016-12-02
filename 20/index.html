@@ -415,7 +415,7 @@ function initScene() {
 
 	var particleMaterial = new THREE.RawShaderMaterial( {
 		uniforms:{
-			positions: { type: 't', value: simulationShader.rtTexturePos }
+			positions: { type: 't', value: rtTexturePos }
 		},
 		vertexShader: document.getElementById( 'particle-vs' ).textContent,
 		fragmentShader: document.getElementById( 'particle-fs' ).textContent
@@ -433,15 +433,15 @@ function initScene() {
 	tex.setSize( texSize, texSize / 2 );
 	textureFBO = [ tex, tex.clone() ];
 
-	textureFBO[ 0 ].wrapS = textureFBO[ 0 ].wrapT = THREE.RepeatWrapping;
-	textureFBO[ 1 ].wrapS = textureFBO[ 1 ].wrapT = THREE.RepeatWrapping;
+	textureFBO[ 0 ].texture.wrapS = textureFBO[ 0 ].texture.wrapT = THREE.RepeatWrapping;
+	textureFBO[ 1 ].texture.wrapS = textureFBO[ 1 ].texture.wrapT = THREE.RepeatWrapping;
 
 	helper.attach( textureFBO[ 0 ], 'texture' );
 	helper.attach( textureFBO[ 1 ], 'texture' );
 
 	textureShader = new THREE.RawShaderMaterial( {
 		uniforms:{
-			positions: { type: 't', value: textureFBO[ targetTexture ] },
+			positions: { type: 't', value: textureFBO[ targetTexture ].texture },
 			dimensions: { type: 't', value: new THREE.Vector2( texSize, texSize / 2 ) }
 		},
 		vertexShader: document.getElementById( 'texture-vs' ).textContent,
@@ -457,7 +457,7 @@ function initScene() {
 
 	clearShader = new THREE.RawShaderMaterial( {
 		uniforms: {
-			texture: { type: 't', value: texture }
+			texture: { type: 't', value: texture.texture }
 		},
 		vertexShader: document.getElementById( 'clear-vs' ).textContent,
 		fragmentShader: document.getElementById( 'clear-fs' ).textContent,
@@ -504,12 +504,7 @@ function initScene() {
 	sphere = new THREE.Mesh(
 		sphereGeometry,
 		new THREE.MeshBasicMaterial({
-			map: tex,
-			roughnessMap: tex,
-			metalnessMap: tex,
-			bumpMap: tex,
-			roughness: .5,
-			metalness: 0,
+			map: tex.texture,
 			transparent: !true,
 			side: THREE.DoubleSide
 		})
@@ -580,23 +575,23 @@ function animate() {
 	controls.update();
 
 	simulationShader.uniforms.time.value = .0001 * performance.now();
-	simulationShader.uniforms.positions.value = targets[ targetPos ];
+	simulationShader.uniforms.positions.value = targets[ targetPos ].texture;
 	targetPos = 1 - targetPos;
 	renderer.render( rtScene, rtCamera, targets[ targetPos ] );
 
 	renderer.autoClear = false;
 
 	orthoQuad.visible = true; orthoMesh.visible = false;
-	clearShader.uniforms.texture.value = textureFBO[ targetTexture ];
+	clearShader.uniforms.texture.value = textureFBO[ targetTexture ].texture;
 	targetTexture = 1 - targetTexture;
 	renderer.render( orthoScene, orthoCamera, textureFBO[ targetTexture ] );
-	textureShader.uniforms.positions.value = targets[ targetPos ];
+	textureShader.uniforms.positions.value = targets[ targetPos ].texture;
 	orthoQuad.visible = false; orthoMesh.visible = true;
 	renderer.render( orthoScene, orthoCamera, textureFBO[ targetTexture ] );
 	//sphere.material.map = textureFBO[ targetTexture ];
 	renderer.autoClear = true;
 
-	mesh.material.uniforms.positions.value = targets[ targetPos ];
+	mesh.material.uniforms.positions.value = targets[ targetPos ].texture;
 
 	renderer.render( scene, camera );
 	helper.update();
