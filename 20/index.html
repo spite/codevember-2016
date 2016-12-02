@@ -541,7 +541,7 @@ function init() {
 	} else {
 		camera.position.set( 0, 0, 90 );
 		controls = new THREE.OrbitControls( camera, renderer.domElement );
-		controls.noZoom = true;
+		controls.enableZoom = false;
 	}
 
 	addFullscreenShortcut( renderer.domElement, onWindowResized );
