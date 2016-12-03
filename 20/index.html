@@ -16,7 +16,7 @@
 			<p><a href="../19" >Previous</a> | <a href="../21" >Next</a></p>
 			<h1>20. Lines on a Sphere</h1>
 			<p>Turning a particle system into an equirectangular panorama texture.</p>
-			<!--<p><span id="toggleStreakBtn" class="action">Toggle streak size</span> | <span id="toggleCamBtn" class="action">Toggle camera position</span></p>-->
+			<p><span id="toggleStreakBtn" class="action">Toggle streak size</span> | <span id="toggleCamBtn" class="action">Toggle camera position</span></p>
 			<p id="moreDetails"><b>More details...</b></p>
 			<div id="details" class="hidden">
 				<p>The basis is a regular particle system (THREE.Points), moving with curl noise.</p>
@@ -86,6 +86,7 @@ uniform mat4 modelMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 
+uniform float streakType;
 uniform sampler2D positions;
 uniform vec2 dimensions;
 
@@ -116,8 +117,7 @@ void main() {
 
 	p.xyz = vec3( vec2( x, y ) * dimensions, 0. );
 
-	gl_PointSize = .5 * dimensions.x / 4096.;// * c.a;
-	gl_PointSize = ( c.a / 100. ) * dimensions.x / 500.;
+	gl_PointSize = mix( 1., ( c.a / 100. ) * dimensions.x / 500., streakType );
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1. );
 
 }
@@ -316,6 +316,34 @@ var textureFBO;
 
 var helper;
 
+var streakType = 1;
+document.getElementById( 'toggleStreakBtn' ).addEventListener( 'click', function( e ){
+
+	streakType = 1 - streakType;
+	textureShader.uniforms.streakType.value = streakType;
+
+});
+
+var cameraPosition = 0;
+document.getElementById( 'toggleCamBtn' ).addEventListener( 'click', function( e ){
+
+	cameraPosition = 1 - cameraPosition;
+	if( cameraPosition == 0 ) {
+		if( isMobile.any ) {
+			camera.position.set( 0, 0, 0 );
+		} else {
+			camera.position.set( 0, 0, 90 );
+		}
+	} else {
+		if( isMobile.any ) {
+			camera.position.set( 0, 0, 0 );
+		} else {
+			camera.position.set( 0, 0, 190 );
+		}
+	}
+
+});
+
 var container = document.getElementById( 'container' );
 
 function createRenderTarget() {
@@ -441,6 +469,7 @@ function initScene() {
 
 	textureShader = new THREE.RawShaderMaterial( {
 		uniforms:{
+			streakType: { type: 'f', value: streakType },
 			positions: { type: 't', value: textureFBO[ targetTexture ].texture },
 			dimensions: { type: 't', value: new THREE.Vector2( texSize, texSize / 2 ) }
 		},
@@ -473,7 +502,6 @@ function initScene() {
 		return Math.atan2( vector.z, - vector.x );
 
 	}
-
 
 	function inclination( vector ) {
 
@@ -526,7 +554,7 @@ function init() {
 
 	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
 	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x261b1f, 1 );
+	renderer.setClearColor( 0, 1 );
 	container.appendChild( renderer.domElement );
 
 	helper = new FBOHelper( renderer );
