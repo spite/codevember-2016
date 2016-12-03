@@ -37,9 +37,9 @@ Kick.prototype = {
 		if ( magnitude >= this.currentThreshold &&
 		    magnitude >= this.threshold ) {
 			this.currentThreshold = magnitude;
-		this.onKick && this.onKick.call( this.dancer, magnitude );
+		this.onKick && this.onKick.call( this, magnitude );
 	} else {
-		this.offKick && this.offKick.call( this.dancer, magnitude );
+		this.offKick && this.offKick.call( this, magnitude );
 		this.currentThreshold -= this.decay;
 	}
 },
