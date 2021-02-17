@@ -1,661 +1,739 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<title>Torus</title>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <head>
+    <title>Torus</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="../css/styles.css"
+      media="screen"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="container"></div>
+    <div id="overlay">
+      <p>Click to start</p>
+    </div>
+    <div id="info">
+      <p><a href="../15">Previous</a> | <a href="../17">Next</a></p>
+      <h1>16. Torus</h1>
+      <p>
+        Another visualisation using Odeo.js, inspired by phosphor oscilloscopes.
+      </p>
+      <p>
+        <span class="action" id="playBtn">Play</span> |
+        <span class="action" id="micBtn">Use microphone</span>
+      </p>
+      <p id="moreDetails"><b>More details...</b></p>
+      <div id="details" class="hidden">
+        <p>
+          Odeo.js exports the frequency spectrum data to a texture. It's then
+          added into a tall buffer and a shader move each row downwards, drawing
+          the new frequency buffer at the top.
+        </p>
+        <p>
+          That texture is then used to distort a series of lines. The lines are
+          distored following a sinusoidal shape with frequency varying with the
+          sound. The actual values of frequency in the buffer are displacement
+          of the lines on the normal direction (the normal vector for the
+          sinusoidal shape is calculated on the shader).
+        </p>
+        <p>
+          Everything is drawn to a color buffer, and then a glow pass is
+          performed (using different levels of mipmaps to avoid blurring), color
+          and glow are combined, a tilt-shift effect is performed and a final
+          pass performing FXAA, and adding vignette, interlacing and
+          oscilloscope grid.
+        </p>
+        <p><b>Credits</b></p>
+        <p>
+          Originally it was supposed to be like
+          <a href="http://archillect.com/29720">this image</a>
+        </p>
+        <p>
+          Song is <a href="https://soundcloud.com/hunz/neon">Neon</a> by hunz
+        </p>
+        <p>
+          Coded using WebGL with <a href="http://threejs.org/">three.js</a>, the
+          SoundCloud API and Odeo.js
+        </p>
+      </div>
+      <p>
+        <a href="https://clicktorelease.com/code/codevember-2016/"
+          >See other experiments for Codevember 2016</a
+        >
+      </p>
+    </div>
+
+    <script src="../js/three.js"></script>
+    <script src="../js/OrbitControls.js"></script>
+    <script src="../js/Maf.js"></script>
+    <script src="../js/THREE.FBOHelper.js"></script>
+    <script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
+    <script src="../js/Odeo.js"></script>
+    <script src="../js/Common.js"></script>
+
+    <script id="ortho-vs" type="x-shader/x-vertex">
+
+      attribute vec4 position;
+      attribute vec2 uv;
+
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
+
+      varying vec2 vUv;
+
+      void main() {
+
+      	vUv = uv;
+      	gl_Position = projectionMatrix * modelViewMatrix * position;
+
+      }
+    </script>
+
+    <script id="displacement-fs" type="x-shader/x-fragment">
 
-		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
+      precision highp float;
 
-	</head>
-	<body>
+      uniform sampler2D inputTexture;
+      uniform sampler2D soundTexture;
+      uniform vec2 dimensions;
 
-		<div id="container"></div>
-		<div id="info" >
-			<p><a href="../15" >Previous</a> | <a href="../17" >Next</a></p>
-			<h1>16. Torus</h1>
-			<p>Another visualisation using Odeo.js, inspired by phosphor oscilloscopes.</p>
-			<p><span class="action" id="playBtn">Play</span> | <span class="action" id="micBtn">Use microphone</span></p>
-			<p id="moreDetails"><b>More details...</b></p>
-			<div id="details" class="hidden">
-				<p>Odeo.js exports the frequency spectrum data to a texture. It's then added into a tall buffer and a shader move each row downwards, drawing the new frequency buffer at the top.</p>
-				<p>That texture is then used to distort a series of lines. The lines are distored following a sinusoidal shape with frequency varying with the sound. The actual values of frequency in the buffer are displacement of the lines on the normal direction (the normal vector for the sinusoidal shape is calculated on the shader).</p>
-				<p>Everything is drawn to a color buffer, and then a glow pass is performed (using different levels of mipmaps to avoid blurring), color and glow are combined, a tilt-shift effect is performed and a final pass performing FXAA, and adding vignette, interlacing and oscilloscope grid.</p>
-				<p><b>Credits</b></p>
-				<p>Originally it was supposed to be like <a href="http://archillect.com/29720">this image</a></p>
-				<p>Song is <a href="https://soundcloud.com/hunz/neon" >Neon</a> by hunz</p>
-				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, the SoundCloud API and Odeo.js</p>
-			</div>
-			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
-		</div>
+      varying vec2 vUv;
 
-		<script src="../js/three.js"></script>
-		<script src="../js/OrbitControls.js"></script>
-		<script src="../js/Maf.js"></script>
-		<script src="../js/THREE.FBOHelper.js"></script>
-		<script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
-		<script src="../js/Odeo.js"></script>
-		<script src="../js/Common.js"></script>
+      void main() {
 
-<script id="ortho-vs" type="x-shader/x-vertex">
+      	vec2 uv = vUv;
+      	uv.y = 1. - uv.y;
 
-attribute vec4 position;
-attribute vec2 uv;
+      	if( uv.y <= 1. / dimensions.y ) {
+      		gl_FragColor = texture2D( soundTexture, uv * vec2( .75, .1 ) );
+      	} else {
+      		gl_FragColor = texture2D( inputTexture, uv - vec2( 0., 1. ) / dimensions );
+      	}
 
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
+      }
+    </script>
 
-varying vec2 vUv;
+    <script id="torus-vs" type="x-shader/x-vertex">
 
-void main() {
+      attribute vec4 position;
+      attribute vec2 uv;
 
-	vUv = uv;
-	gl_Position = projectionMatrix * modelViewMatrix * position;
+      uniform mat4 modelViewMatrix;
+      uniform mat4 projectionMatrix;
 
-}
+      uniform sampler2D inputTexture;
+      uniform vec2 dimensions;
 
-</script>
+      varying vec2 vUv;
+      varying float intensity;
 
-<script id="displacement-fs" type="x-shader/x-fragment">
+      #define M_PI 3.1415926535897932384626433832795
 
-precision highp float;
+      void main() {
 
-uniform sampler2D inputTexture;
-uniform sampler2D soundTexture;
-uniform vec2 dimensions;
+      	vUv = uv;
+      	vec3 p = position.xyz;
+      	vec3 c = texture2D( inputTexture, uv ).rgb;
 
-varying vec2 vUv;
+      	intensity = c.r;
+      	float freq = floor( texture2D( inputTexture, vec2( .5, 0. ) ).r * 10. );
 
-void main() {
+      	float a = uv.y * 2. * M_PI;
+      	float r = 50. + 50. * ( .5 + .5 * sin( a * freq ) );
+      	p.y = r * cos( a ); p.z = r * sin( a );
 
-	vec2 uv = vUv;
-	uv.y = 1. - uv.y;
+      	float e = .0001;
+      	float ap = a + e;
+      	float rp = 50. + 50. * ( .5 + .5 * sin( ap * freq ) );
+      	vec3 pp = vec3( p.x, rp * cos( ap ), rp * sin( ap ) );
 
-	if( uv.y <= 1. / dimensions.y ) {
-		gl_FragColor = texture2D( soundTexture, uv * vec2( .75, .1 ) );
-	} else {
-		gl_FragColor = texture2D( inputTexture, uv - vec2( 0., 1. ) / dimensions );
-	}
+      	vec3 t = normalize( pp - p );
+      	vec3 n = cross( t, vec3( 1., 0., 0. ) );
 
-}
-</script>
+      	p += n * intensity * 50. * ( .5 + .5 * sin( a * freq ) );
 
-<script id="torus-vs" type="x-shader/x-vertex">
+      	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1. );
 
-attribute vec4 position;
-attribute vec2 uv;
+      }
+    </script>
 
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
+    <script id="torus-fs" type="x-shader/x-fragment">
 
-uniform sampler2D inputTexture;
-uniform vec2 dimensions;
+      precision highp float;
 
-varying vec2 vUv;
-varying float intensity;
+      varying vec2 vUv;
+      varying float intensity;
 
-#define M_PI 3.1415926535897932384626433832795
+      void main() {
 
-void main() {
+      	float a = smoothstep( .75, 1., .5 + .5 * sin( vUv.y * 2048. ) );
+      	a = smoothstep( .75, 1., .5 + .5 * cos( vUv.x * 256. ) );
+      	a *= smoothstep( .5, 1., .5 + .5 * sin( vUv.y * 4096. ) );
+      	a *= intensity;// * ( 1. - vUv.y );
+      	gl_FragColor = vec4( vec3( 0., 1., 0. ), a );
 
-	vUv = uv;
-	vec3 p = position.xyz;
-	vec3 c = texture2D( inputTexture, uv ).rgb;
+      }
+    </script>
 
-	intensity = c.r;
-	float freq = floor( texture2D( inputTexture, vec2( .5, 0. ) ).r * 10. );
+    <script type="x-shader/x-fragment" id="copy-fs">
+      precision highp float;
 
-	float a = uv.y * 2. * M_PI;
-	float r = 50. + 50. * ( .5 + .5 * sin( a * freq ) );
-	p.y = r * cos( a ); p.z = r * sin( a );
+      uniform sampler2D inputTexture;
 
-	float e = .0001;
-	float ap = a + e;
-	float rp = 50. + 50. * ( .5 + .5 * sin( ap * freq ) );
-	vec3 pp = vec3( p.x, rp * cos( ap ), rp * sin( ap ) );
+      varying vec2 vUv;
 
-	vec3 t = normalize( pp - p );
-	vec3 n = cross( t, vec3( 1., 0., 0. ) );
+      void main() {
 
-	p += n * intensity * 50. * ( .5 + .5 * sin( a * freq ) );
+      	gl_FragColor = texture2D( inputTexture, vUv );
 
-	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1. );
+      }
+    </script>
 
-}
+    <script type="x-shader/x-fragment" id="distort-fs">
+      precision highp float;
 
-</script>
+      uniform sampler2D inputTexture;
 
-<script id="torus-fs" type="x-shader/x-fragment">
+      varying vec2 vUv;
 
-precision highp float;
+      vec2 distort(vec2 uv) {
 
-varying vec2 vUv;
-varying float intensity;
+          float distortion = 0.2;
+          float r = uv.x*uv.x + uv.y*uv.y;
+          uv *= 1.6 + distortion * r + distortion * r * r;
+          return uv;
+      }
 
-void main() {
+      void main() {
 
-	float a = smoothstep( .75, 1., .5 + .5 * sin( vUv.y * 2048. ) );
-	a = smoothstep( .75, 1., .5 + .5 * cos( vUv.x * 256. ) );
-	a *= smoothstep( .5, 1., .5 + .5 * sin( vUv.y * 4096. ) );
-	a *= intensity;// * ( 1. - vUv.y );
-	gl_FragColor = vec4( vec3( 0., 1., 0. ), a );
+      	vec2 uv = vUv;
+          uv = uv * 2.0 - 1.0;
+          uv = distorty(uv);
+          uv = 0.5 * (uv * 0.5 + 1.0);
+      	fragColor = texture2D(inputTexture, uv);
 
-}
-</script>
+      }
+    </script>
 
-<script type="x-shader/x-fragment" id="copy-fs" >
-precision highp float;
+    <script type="x-shader/x-fragment" id="combine-fs">
+      precision highp float;
 
-uniform sampler2D inputTexture;
+      uniform sampler2D inputTexture;
+      uniform sampler2D glowTexture;
+      uniform vec2 resolution;
 
-varying vec2 vUv;
+      varying vec2 vUv;
 
-void main() {
+      void main() {
 
-	gl_FragColor = texture2D( inputTexture, vUv );
+      	vec2 uv = vUv;
 
-}
-</script>
+      	vec4 color = texture2D( inputTexture, uv );
 
-<script type="x-shader/x-fragment" id="distort-fs" >
-precision highp float;
+      	vec2 uv2 = uv;
+      	vec4 glow1 = texture2D( glowTexture, uv2, 1. );
+      	vec4 glow2 = texture2D( glowTexture, uv2, 2. );
+      	vec4 glow4 = texture2D( glowTexture, uv2, 4. );
+      	vec4 glow8 = texture2D( glowTexture, uv2, 8. );
+      	vec4 glow16 = texture2D( glowTexture, uv2, 16. );
 
-uniform sampler2D inputTexture;
+      	vec4 glow = glow1;
+      	glow += 2. * glow2;
+      	glow += 4. * glow4;
+      	glow += 8. * glow8;
+      	glow += 16. * glow16;
+      	glow /= 5.;
+      	glow = clamp( glow, vec4( 0. ), vec4( 1. ) );
 
-varying vec2 vUv;
+      	color += glow;
 
-vec2 distort(vec2 uv) {
+      	gl_FragColor = color;
 
-    float distortion = 0.2;
-    float r = uv.x*uv.x + uv.y*uv.y;
-    uv *= 1.6 + distortion * r + distortion * r * r;
-    return uv;
-}
+      }
+    </script>
 
-void main() {
+    <script type="x-shader/x-fragment" id="tilt-shift-fs">
+      precision highp float;
 
-	vec2 uv = vUv;
-    uv = uv * 2.0 - 1.0;
-    uv = distorty(uv);
-    uv = 0.5 * (uv * 0.5 + 1.0);
-	fragColor = texture2D(inputTexture, uv);
+      uniform sampler2D inputTexture;
+      uniform vec2 resolution;
 
-}
-</script>
+      varying vec2 vUv;
 
-<script type="x-shader/x-fragment" id="combine-fs" >
-precision highp float;
+      float smootherstep(float edge0, float edge1, float x) {
 
-uniform sampler2D inputTexture;
-uniform sampler2D glowTexture;
-uniform vec2 resolution;
+          x = clamp((x - edge0)/(edge1 - edge0), 0.0, 1.0);
+          return x*x*x*(x*(x*6. - 15.) + 10.);
 
-varying vec2 vUv;
+      }
 
-void main() {
+      void main(){
 
-	vec2 uv = vUv;
+      	vec4 sum = vec4( 0. );
+      	float d = abs( .5 - vUv.y );
+      	vec2 inc = vec2( 0., .005 * smootherstep( 0., .75, d ) );
 
-	vec4 color = texture2D( inputTexture, uv );
+      	sum += texture2D( inputTexture, ( vUv - inc * 4. ) ) * 0.051;
+      	sum += texture2D( inputTexture, ( vUv - inc * 3. ) ) * 0.0918;
+      	sum += texture2D( inputTexture, ( vUv - inc * 2. ) ) * 0.12245;
+      	sum += texture2D( inputTexture, ( vUv - inc * 1. ) ) * 0.1531;
+      	sum += texture2D( inputTexture, ( vUv + inc * 0. ) ) * 0.1633;
+      	sum += texture2D( inputTexture, ( vUv + inc * 1. ) ) * 0.1531;
+      	sum += texture2D( inputTexture, ( vUv + inc * 2. ) ) * 0.12245;
+      	sum += texture2D( inputTexture, ( vUv + inc * 3. ) ) * 0.0918;
+      	sum += texture2D( inputTexture, ( vUv + inc * 4. ) ) * 0.051;
 
-	vec2 uv2 = uv;
-	vec4 glow1 = texture2D( glowTexture, uv2, 1. );
-	vec4 glow2 = texture2D( glowTexture, uv2, 2. );
-	vec4 glow4 = texture2D( glowTexture, uv2, 4. );
-	vec4 glow8 = texture2D( glowTexture, uv2, 8. );
-	vec4 glow16 = texture2D( glowTexture, uv2, 16. );
+      	gl_FragColor = sum;
 
-	vec4 glow = glow1;
-	glow += 2. * glow2;
-	glow += 4. * glow4;
-	glow += 8. * glow8;
-	glow += 16. * glow16;
-	glow /= 5.;
-	glow = clamp( glow, vec4( 0. ), vec4( 1. ) );
+      }
+    </script>
 
-	color += glow;
+    <script type="x-shader/x-fragment" id="final-fs">
+      precision highp float;
 
-	gl_FragColor = color;
+      uniform sampler2D inputTexture;
+      uniform sampler2D glowTexture;
+      uniform sampler2D blurTexture;
+      uniform sampler2D depthTexture;
+      uniform vec2 resolution;
 
-}
-</script>
+      uniform float boost;
+      uniform float reduction;
 
-<script type="x-shader/x-fragment" id="tilt-shift-fs" >
-precision highp float;
+      uniform float amount;
+      uniform float time;
 
-uniform sampler2D inputTexture;
-uniform vec2 resolution;
+      varying vec2 vUv;
 
-varying vec2 vUv;
+      float random(vec2 n, float offset ){
+      	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
+      }
 
-float smootherstep(float edge0, float edge1, float x) {
+      float applyOverlayToChannel( float base, float blend ) {
 
-    x = clamp((x - edge0)/(edge1 - edge0), 0.0, 1.0);
-    return x*x*x*(x*(x*6. - 15.) + 10.);
+      	return (base < 0.5 ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend)));
 
-}
+      }
 
-void main(){
+      #define FXAA_SPAN_MAX 8.0
+      #define FXAA_REDUCE_MUL   (1.0/FXAA_SPAN_MAX)
+      #define FXAA_REDUCE_MIN   (1.0/128.0)
+      #define FXAA_SUBPIX_SHIFT (1.0/4.0)
 
-	vec4 sum = vec4( 0. );
-	float d = abs( .5 - vUv.y );
-	vec2 inc = vec2( 0., .005 * smootherstep( 0., .75, d ) );
+      vec3 FxaaPixelShader( vec4 uv, sampler2D tex, vec2 rcpFrame) {
 
-	sum += texture2D( inputTexture, ( vUv - inc * 4. ) ) * 0.051;
-	sum += texture2D( inputTexture, ( vUv - inc * 3. ) ) * 0.0918;
-	sum += texture2D( inputTexture, ( vUv - inc * 2. ) ) * 0.12245;
-	sum += texture2D( inputTexture, ( vUv - inc * 1. ) ) * 0.1531;
-	sum += texture2D( inputTexture, ( vUv + inc * 0. ) ) * 0.1633;
-	sum += texture2D( inputTexture, ( vUv + inc * 1. ) ) * 0.1531;
-	sum += texture2D( inputTexture, ( vUv + inc * 2. ) ) * 0.12245;
-	sum += texture2D( inputTexture, ( vUv + inc * 3. ) ) * 0.0918;
-	sum += texture2D( inputTexture, ( vUv + inc * 4. ) ) * 0.051;
+          vec3 rgbNW = texture2D(tex, uv.zw ).xyz;
+          vec3 rgbNE = texture2D(tex, uv.zw + vec2(1,0)*rcpFrame.xy ).xyz;
+          vec3 rgbSW = texture2D(tex, uv.zw + vec2(0,1)*rcpFrame.xy ).xyz;
+          vec3 rgbSE = texture2D(tex, uv.zw + vec2(1,1)*rcpFrame.xy ).xyz;
+          vec3 rgbM  = texture2D(tex, uv.xy ).xyz;
 
-	gl_FragColor = sum;
+          vec3 luma = vec3(0.299, 0.587, 0.114);
+          float lumaNW = dot(rgbNW, luma);
+          float lumaNE = dot(rgbNE, luma);
+          float lumaSW = dot(rgbSW, luma);
+          float lumaSE = dot(rgbSE, luma);
+          float lumaM  = dot(rgbM,  luma);
 
-}
-</script>
+          float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+          float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
 
-<script type="x-shader/x-fragment" id="final-fs" >
-precision highp float;
+          vec2 dir;
+          dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+          dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
 
-uniform sampler2D inputTexture;
-uniform sampler2D glowTexture;
-uniform sampler2D blurTexture;
-uniform sampler2D depthTexture;
-uniform vec2 resolution;
+          float dirReduce = max(
+              (lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL),
+              FXAA_REDUCE_MIN);
+          float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);
 
-uniform float boost;
-uniform float reduction;
+          dir = min(vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX),
+                max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
+                dir * rcpDirMin)) * rcpFrame.xy;
 
-uniform float amount;
-uniform float time;
+          vec3 rgbA = (1.0/2.0) * (
+              texture2D(tex, uv.xy + dir * (1.0/3.0 - 0.5) ).xyz +
+              texture2D(tex, uv.xy + dir * (2.0/3.0 - 0.5) ).xyz);
+          vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (
+              texture2D(tex, uv.xy + dir * (0.0/3.0 - 0.5) ).xyz +
+              texture2D(tex, uv.xy + dir * (3.0/3.0 - 0.5) ).xyz);
 
-varying vec2 vUv;
+          float lumaB = dot(rgbB, luma);
 
-float random(vec2 n, float offset ){
-	return .5 - fract(sin(dot(n.xy + vec2( offset, 0. ), vec2(12.9898, 78.233)))* 43758.5453);
-}
+          if((lumaB < lumaMin) || (lumaB > lumaMax)) return rgbA;
 
-float applyOverlayToChannel( float base, float blend ) {
+          return rgbB;
+      }
 
-	return (base < 0.5 ? (2.0 * base * blend) : (1.0 - 2.0 * (1.0 - base) * (1.0 - blend)));
+      vec2 computeUV( vec2 uv, float k, float kcube ){
 
-}
+          vec2 t = uv - .5;
+          float r2 = t.x * t.x + t.y * t.y;
+      	float f = 0.;
 
-#define FXAA_SPAN_MAX 8.0
-#define FXAA_REDUCE_MUL   (1.0/FXAA_SPAN_MAX)
-#define FXAA_REDUCE_MIN   (1.0/128.0)
-#define FXAA_SUBPIX_SHIFT (1.0/4.0)
+          if( kcube == 0.0){
+              f = 1. + r2 * k;
+          }else{
+              f = 1. + r2 * ( k + kcube * sqrt( r2 ) );
+          }
 
-vec3 FxaaPixelShader( vec4 uv, sampler2D tex, vec2 rcpFrame) {
+          vec2 nUv = .65 * f * t + .5;
+          nUv.y = 1. - nUv.y;
 
-    vec3 rgbNW = texture2D(tex, uv.zw ).xyz;
-    vec3 rgbNE = texture2D(tex, uv.zw + vec2(1,0)*rcpFrame.xy ).xyz;
-    vec3 rgbSW = texture2D(tex, uv.zw + vec2(0,1)*rcpFrame.xy ).xyz;
-    vec3 rgbSE = texture2D(tex, uv.zw + vec2(1,1)*rcpFrame.xy ).xyz;
-    vec3 rgbM  = texture2D(tex, uv.xy ).xyz;
+          return nUv;
 
-    vec3 luma = vec3(0.299, 0.587, 0.114);
-    float lumaNW = dot(rgbNW, luma);
-    float lumaNE = dot(rgbNE, luma);
-    float lumaSW = dot(rgbSW, luma);
-    float lumaSE = dot(rgbSE, luma);
-    float lumaM  = dot(rgbM,  luma);
+      }
 
-    float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
-    float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+      void main() {
 
-    vec2 dir;
-    dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
-    dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+          vec2 res = 1. / resolution;
 
-    float dirReduce = max(
-        (lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL),
-        FXAA_REDUCE_MIN);
-    float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);
+          vec2 uv = vUv;
 
-    dir = min(vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX),
-          max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
-          dir * rcpDirMin)) * rcpFrame.xy;
+         	vec4 aauv = vec4( uv, uv - (res * (0.5 + FXAA_SUBPIX_SHIFT)));
+          vec4 color;
+          color.rgb = FxaaPixelShader( aauv, inputTexture, res );
 
-    vec3 rgbA = (1.0/2.0) * (
-        texture2D(tex, uv.xy + dir * (1.0/3.0 - 0.5) ).xyz +
-        texture2D(tex, uv.xy + dir * (2.0/3.0 - 0.5) ).xyz);
-    vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (
-        texture2D(tex, uv.xy + dir * (0.0/3.0 - 0.5) ).xyz +
-        texture2D(tex, uv.xy + dir * (3.0/3.0 - 0.5) ).xyz);
+          vec2 position = ( gl_FragCoord.xy / resolution ) - .5;
+      	float vignette = length( position );
+          vignette = boost - vignette * reduction;
 
-    float lumaB = dot(rgbB, luma);
+          color.rgb = vec3(
+      		applyOverlayToChannel( color.r, vignette ),
+      		applyOverlayToChannel( color.g, vignette ),
+      		applyOverlayToChannel( color.b, vignette )
+      	);
 
-    if((lumaB < lumaMin) || (lumaB > lumaMax)) return rgbA;
+          float interlace = .85 + .15 * smoothstep( .25, .75, sin( uv.y * 1. * resolution.y ) );
+          color.rgb = vec3(
+      		applyOverlayToChannel( color.r, interlace ),
+      		applyOverlayToChannel( color.g, interlace ),
+      		applyOverlayToChannel( color.b, interlace )
+      	);
 
-    return rgbB;
-}
+          float grid = smoothstep( .995, 1., .5 + .5 * cos( vUv.x * resolution.x / 20. ) );
+          grid += smoothstep( .995, 1., .5 + .5 * cos( vUv.y * resolution.y / 20. ) );
+          color *= 1. - .125 * grid;
 
-vec2 computeUV( vec2 uv, float k, float kcube ){
+          gl_FragColor = color;
 
-    vec2 t = uv - .5;
-    float r2 = t.x * t.x + t.y * t.y;
-	float f = 0.;
+      }
+    </script>
 
-    if( kcube == 0.0){
-        f = 1. + r2 * k;
-    }else{
-        f = 1. + r2 * ( k + kcube * sqrt( r2 ) );
-    }
+    <script>
+      // http://archillect.com/29720
+      // https://s-media-cache-ak0.pinimg.com/736x/0b/98/de/0b98de239fcb91ef0411dd0b6185e47e.jpg
+      // https://s-media-cache-ak0.pinimg.com/originals/b8/42/73/b84273935ccb49148fa54da57d6234e4.jpg
+      // https://s-media-cache-ak0.pinimg.com/originals/3d/a3/42/3da342d31d120dc3e7438c8120b6c360.jpg
 
-    vec2 nUv = .65 * f * t + .5;
-    nUv.y = 1. - nUv.y;
+      "use strict";
 
-    return nUv;
+      var container, renderer, camera, controls, scene;
+      var mesh, targets;
+      var displacementShader,
+        copyShader,
+        combineShader,
+        finalShader,
+        tiltShiftShader;
+      var baseFBO, glowFBO, combineFBO, tiltShiftFBO;
+      var rtScene, rtCamera, rtQuad;
+      var orthoScene, orthoCamera, orthoQuad;
+      var targetPtr = 0;
+      var resolution = new THREE.Vector2();
 
-}
+      var helper;
 
-void main() {
+      var container = document.getElementById("container");
 
-    vec2 res = 1. / resolution;
+      var odeo = new Odeo({
+        soundCloudId: "b1275b704badf79d972d51aa4b92ea15",
+      });
+      document
+        .getElementById("playBtn")
+        .addEventListener("click", function (e) {
+          odeo.stopUsingMicrophone();
+          odeo.playSoundCloud(
+            "https://soundcloud.com/datashat/people-without-mouths"
+          );
+          e.preventDefault();
+        });
+      document.getElementById("micBtn").addEventListener("click", function (e) {
+        odeo.stopSoundCloud();
+        odeo.useMicrophone();
+        e.preventDefault();
+      });
+      const overlay = document.querySelector("#overlay");
+      overlay.addEventListener(
+        "click",
+        () => {
+          overlay.style.display = "none";
+          odeo.activate();
+          odeo.playSoundCloud("https://soundcloud.com/hunz/switch-off");
+        },
+        { once: true }
+      );
 
-    vec2 uv = vUv;
-
-   	vec4 aauv = vec4( uv, uv - (res * (0.5 + FXAA_SUBPIX_SHIFT)));
-    vec4 color;
-    color.rgb = FxaaPixelShader( aauv, inputTexture, res );
-
-    vec2 position = ( gl_FragCoord.xy / resolution ) - .5;
-	float vignette = length( position );
-    vignette = boost - vignette * reduction;
-
-    color.rgb = vec3(
-		applyOverlayToChannel( color.r, vignette ),
-		applyOverlayToChannel( color.g, vignette ),
-		applyOverlayToChannel( color.b, vignette )
-	);
-
-    float interlace = .85 + .15 * smoothstep( .25, .75, sin( uv.y * 1. * resolution.y ) );
-    color.rgb = vec3(
-		applyOverlayToChannel( color.r, interlace ),
-		applyOverlayToChannel( color.g, interlace ),
-		applyOverlayToChannel( color.b, interlace )
-	);
-
-    float grid = smoothstep( .995, 1., .5 + .5 * cos( vUv.x * resolution.x / 20. ) );
-    grid += smoothstep( .995, 1., .5 + .5 * cos( vUv.y * resolution.y / 20. ) );
-    color *= 1. - .125 * grid;
-
-    gl_FragColor = color;
-
-}
-
-</script>
-
-<script>
-
-// http://archillect.com/29720
-// https://s-media-cache-ak0.pinimg.com/736x/0b/98/de/0b98de239fcb91ef0411dd0b6185e47e.jpg
-// https://s-media-cache-ak0.pinimg.com/originals/b8/42/73/b84273935ccb49148fa54da57d6234e4.jpg
-// https://s-media-cache-ak0.pinimg.com/originals/3d/a3/42/3da342d31d120dc3e7438c8120b6c360.jpg
-
-'use strict';
-
-var container, renderer, camera, controls, scene;
-var mesh, targets;
-var displacementShader, copyShader, combineShader, finalShader, tiltShiftShader;
-var baseFBO, glowFBO, combineFBO, tiltShiftFBO;
-var rtScene, rtCamera, rtQuad;
-var orthoScene, orthoCamera, orthoQuad;
-var targetPtr = 0;
-var resolution = new THREE.Vector2();
-
-var helper;
-
-var container = document.getElementById( 'container' );
-
-var odeo = new Odeo( {
-	soundCloudId: 'b1275b704badf79d972d51aa4b92ea15'
-} );
-document.getElementById( 'playBtn' ).addEventListener( 'click', function( e ) {
-	odeo.stopUsingMicrophone();
-	odeo.playSoundCloud( 'https://soundcloud.com/hunz/neon' );
-	e.preventDefault();
-})
-document.getElementById( 'micBtn' ).addEventListener( 'click', function( e ) {
-	odeo.stopSoundCloud();
-	odeo.useMicrophone();
-	e.preventDefault();
-})
-odeo.playSoundCloud( 'https://soundcloud.com/hunz/neon' );
-
-var spectrumTexture = odeo.getSpectrumTexture();
-
-function createRenderTarget() {
-
-	return new THREE.WebGLRenderTarget( 1, 1, {
-		wrapS: THREE.ClampToEdgeWrapping,
-		wrapT: THREE.ClampToEdgeWrapping,
-		format: THREE.RGBAFormat,
-		stencilBuffer: false,
-		depthBuffer: true
-	});
-
-}
-
-function initScene() {
-
-	var width = 64;
-	var height = 512;
-
-	var displacement = new THREE.WebGLRenderTarget( width, height, {
-		wrapS: THREE.ClampToEdgeWrapping,
-		wrapT: THREE.ClampToEdgeWrapping,
-		minFilter: THREE.NearestFilter,
-		magFilter: THREE.NearestFilter,
-		format: THREE.RGBAFormat,
-		type: THREE.FloatType,
-		stencilBuffer: false,
-		depthBuffer: false
-	});
-
-	targets = [ displacement, displacement.clone() ];
-
-	helper.attach( targets[ 0 ], '#1' );
-	helper.attach( targets[ 1 ], '#2' );
-	helper.attach( spectrumTexture, 'sound' );
-
-	displacementShader = new THREE.RawShaderMaterial({
-		uniforms: {
-			dimensions: { type: 'v2', value: new THREE.Vector2( width, height ) },
-			inputTexture: { type: 't', value: targets[ 0 ] },
-			soundTexture: { type: 't', value: spectrumTexture }
-		},
-		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
-		fragmentShader: document.getElementById( 'displacement-fs' ).textContent,
-		side: THREE.DoubleSide
-	})
-
-	rtScene = new THREE.Scene();
-	rtCamera = new THREE.OrthographicCamera( -width / 2, width / 2, -height / 2, height / 2, -500, 1000 );
-	rtQuad = new THREE.Mesh(
-		new THREE.PlaneBufferGeometry( width, height ),
-		displacementShader
-	);
-	rtScene.add( rtQuad );
-
-	var material = new THREE.RawShaderMaterial({
-		uniforms: {
-			dimensions: { type: 'v2', value: new THREE.Vector2( width, height ) },
-			inputTexture: { type: 't', value: targets[ 0 ] }
-		},
-		vertexShader: document.getElementById( 'torus-vs' ).textContent,
-		fragmentShader: document.getElementById( 'torus-fs' ).textContent,
-		side: THREE.DoubleSide,
-		depthTest: false,
-		depthWrite: false,
-		wireframe: !true,
-		transparent: true
-	})
-	var geometry = new THREE.PlaneBufferGeometry( width, height, width, height );
-	mesh = new THREE.Mesh( geometry, material );
-	mesh.rotation.x = -Math.PI / 2;
-	scene.add( mesh );
-
-	baseFBO = createRenderTarget();
-	glowFBO = createRenderTarget();
-	combineFBO = createRenderTarget();
-	tiltShiftFBO = createRenderTarget();
-
-	helper.attach( baseFBO, 'base' );
-	helper.attach( glowFBO, 'glow' );
-
-	glowFBO.texture.minFilter = THREE.LinearMipMapLinearFilter;
-	glowFBO.texture.wrapS = glowFBO.texture.wrapT = THREE.ClampToEdgeWrapping;
-
-	combineShader = new THREE.RawShaderMaterial( {
-		uniforms: {
-			inputTexture: { type: 't', value: baseFBO.texture },
-			glowTexture: { type: 't', value: glowFBO.texture },
-			resolution: { type: 'v2', value: resolution }
-		},
-		vertexShader: document.getElementById('ortho-vs').textContent,
-		fragmentShader: document.getElementById('combine-fs').textContent,
-	} );
-
-	copyShader = new THREE.RawShaderMaterial( {
-		uniforms: {
-			inputTexture: { type: 't', value: baseFBO.texture }
-		},
-		vertexShader: document.getElementById('ortho-vs').textContent,
-		fragmentShader: document.getElementById('copy-fs').textContent,
-	} );
-
-	tiltShiftShader = new THREE.RawShaderMaterial( {
-		uniforms: {
-			inputTexture: { type: 't', value: combineFBO.texture },
-			resolution: { type: 'v2', value: resolution },
-		},
-		vertexShader: document.getElementById('ortho-vs').textContent,
-		fragmentShader: document.getElementById('tilt-shift-fs').textContent,
-	} );
-
-	finalShader = new THREE.RawShaderMaterial( {
-		uniforms: {
-			inputTexture: { type: 't', value: tiltShiftFBO.texture },
-			resolution: { type: 'v2', value: resolution },
-			boost: { type: 'f', value: 1 },
-			reduction: { type: 'f', value: 1.2 },
-			amount: { type: 'f', value: .05 },
-			time: { type: 'f', value: 0 }
-		},
-		vertexShader: document.getElementById('ortho-vs').textContent,
-		fragmentShader: document.getElementById('final-fs').textContent,
-	} );
-
-	orthoScene = new THREE.Scene();
-	orthoCamera = new THREE.OrthographicCamera( 1 / - 2, 1 / 2, 1 / 2, 1 / - 2, .00001, 1000 );
-	orthoQuad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1 ), combineShader );
-	orthoScene.add( orthoQuad );
-
-}
-
-function init() {
-
-	container = document.getElementById( 'container' );
-
-	scene = new THREE.Scene();
-
-	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
-	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 120 );
-	camera.lookAt( camera.target );
-	scene.add( camera );
-
-	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
-	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x000404, 1 );
-	container.appendChild( renderer.domElement );
-
-	renderer.shadowMap.enabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap;
-
-	addFullscreenShortcut( renderer.domElement, onWindowResized );
-
-	helper = new FBOHelper( renderer );
-	helper.show( false );
-
-	controls = new THREE.OrbitControls( camera, renderer.domElement );
-
-	initScene();
-	onWindowResized();
-
-	window.addEventListener( 'resize', onWindowResized );
-
-	animate();
-
-}
-
-function onWindowResized( event ) {
-
-	var w = container.clientWidth;
-	var h = container.clientHeight;
-
-	renderer.setSize( w, h );
-	camera.aspect = w / h;
-	camera.updateProjectionMatrix();
-
-	var dPR = renderer.getPixelRatio();
-	resolution.set( w * dPR, h * dPR );
-
-	var sW = Maf.nextPowerOfTwo( w ) / 2;
-	var sH = Maf.nextPowerOfTwo( h ) / 2;
-
-	baseFBO.setSize( w * dPR, h * dPR );
-	combineFBO.setSize( w * dPR, h * dPR );
-	glowFBO.setSize( sW, sH );
-	tiltShiftFBO.setSize( sW, sH );
-
-	orthoQuad.scale.set( w, h, 1 );
-
-	orthoCamera.left   = - w / 2;
-	orthoCamera.right  =   w / 2;
-	orthoCamera.top    =   h / 2;
-	orthoCamera.bottom = - h / 2;
-	orthoCamera.updateProjectionMatrix();
-
-	helper.setSize( w, h );
-
-}
-
-function animate() {
-
-	requestAnimationFrame( animate );
-
-	controls.update();
-	odeo.update();
-
-	displacementShader.uniforms.inputTexture.value = targets[ 1 - targetPtr ];
-	renderer.render( rtScene, rtCamera, targets[ targetPtr ] );
-
-	mesh.material.uniforms.inputTexture.value = targets[ targetPtr ];
-	renderer.render( scene, camera, baseFBO );
-	orthoQuad.material = copyShader;
-	renderer.render( orthoScene, orthoCamera, glowFBO );
-	orthoQuad.material = combineShader;
-	renderer.render( orthoScene, orthoCamera, combineFBO );
-	orthoQuad.material = tiltShiftShader;
-	renderer.render( orthoScene, orthoCamera, tiltShiftFBO );
-	orthoQuad.material = finalShader;
-	renderer.render( orthoScene, orthoCamera );
-
-	targetPtr = 1 - targetPtr;
-
-	//helper.update();
-
-}
-
-window.addEventListener( 'load', init );
-
-</script>
-
-	</body>
+      var spectrumTexture = odeo.getSpectrumTexture();
+
+      function createRenderTarget() {
+        return new THREE.WebGLRenderTarget(1, 1, {
+          wrapS: THREE.ClampToEdgeWrapping,
+          wrapT: THREE.ClampToEdgeWrapping,
+          format: THREE.RGBAFormat,
+          stencilBuffer: false,
+          depthBuffer: true,
+        });
+      }
+
+      function initScene() {
+        var width = 64;
+        var height = 512;
+
+        var displacement = new THREE.WebGLRenderTarget(width, height, {
+          wrapS: THREE.ClampToEdgeWrapping,
+          wrapT: THREE.ClampToEdgeWrapping,
+          minFilter: THREE.NearestFilter,
+          magFilter: THREE.NearestFilter,
+          format: THREE.RGBAFormat,
+          type: THREE.FloatType,
+          stencilBuffer: false,
+          depthBuffer: false,
+        });
+
+        targets = [displacement, displacement.clone()];
+
+        helper.attach(targets[0], "#1");
+        helper.attach(targets[1], "#2");
+        helper.attach(spectrumTexture, "sound");
+
+        displacementShader = new THREE.RawShaderMaterial({
+          uniforms: {
+            dimensions: { type: "v2", value: new THREE.Vector2(width, height) },
+            inputTexture: { type: "t", value: targets[0] },
+            soundTexture: { type: "t", value: spectrumTexture },
+          },
+          vertexShader: document.getElementById("ortho-vs").textContent,
+          fragmentShader: document.getElementById("displacement-fs")
+            .textContent,
+          side: THREE.DoubleSide,
+        });
+
+        rtScene = new THREE.Scene();
+        rtCamera = new THREE.OrthographicCamera(
+          -width / 2,
+          width / 2,
+          -height / 2,
+          height / 2,
+          -500,
+          1000
+        );
+        rtQuad = new THREE.Mesh(
+          new THREE.PlaneBufferGeometry(width, height),
+          displacementShader
+        );
+        rtScene.add(rtQuad);
+
+        var material = new THREE.RawShaderMaterial({
+          uniforms: {
+            dimensions: { type: "v2", value: new THREE.Vector2(width, height) },
+            inputTexture: { type: "t", value: targets[0] },
+          },
+          vertexShader: document.getElementById("torus-vs").textContent,
+          fragmentShader: document.getElementById("torus-fs").textContent,
+          side: THREE.DoubleSide,
+          depthTest: false,
+          depthWrite: false,
+          wireframe: !true,
+          transparent: true,
+        });
+        var geometry = new THREE.PlaneBufferGeometry(
+          width,
+          height,
+          width,
+          height
+        );
+        mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.x = -Math.PI / 2;
+        scene.add(mesh);
+
+        baseFBO = createRenderTarget();
+        glowFBO = createRenderTarget();
+        combineFBO = createRenderTarget();
+        tiltShiftFBO = createRenderTarget();
+
+        helper.attach(baseFBO, "base");
+        helper.attach(glowFBO, "glow");
+
+        glowFBO.texture.minFilter = THREE.LinearMipMapLinearFilter;
+        glowFBO.texture.wrapS = glowFBO.texture.wrapT =
+          THREE.ClampToEdgeWrapping;
+
+        combineShader = new THREE.RawShaderMaterial({
+          uniforms: {
+            inputTexture: { type: "t", value: baseFBO.texture },
+            glowTexture: { type: "t", value: glowFBO.texture },
+            resolution: { type: "v2", value: resolution },
+          },
+          vertexShader: document.getElementById("ortho-vs").textContent,
+          fragmentShader: document.getElementById("combine-fs").textContent,
+        });
+
+        copyShader = new THREE.RawShaderMaterial({
+          uniforms: {
+            inputTexture: { type: "t", value: baseFBO.texture },
+          },
+          vertexShader: document.getElementById("ortho-vs").textContent,
+          fragmentShader: document.getElementById("copy-fs").textContent,
+        });
+
+        tiltShiftShader = new THREE.RawShaderMaterial({
+          uniforms: {
+            inputTexture: { type: "t", value: combineFBO.texture },
+            resolution: { type: "v2", value: resolution },
+          },
+          vertexShader: document.getElementById("ortho-vs").textContent,
+          fragmentShader: document.getElementById("tilt-shift-fs").textContent,
+        });
+
+        finalShader = new THREE.RawShaderMaterial({
+          uniforms: {
+            inputTexture: { type: "t", value: tiltShiftFBO.texture },
+            resolution: { type: "v2", value: resolution },
+            boost: { type: "f", value: 1 },
+            reduction: { type: "f", value: 1.2 },
+            amount: { type: "f", value: 0.05 },
+            time: { type: "f", value: 0 },
+          },
+          vertexShader: document.getElementById("ortho-vs").textContent,
+          fragmentShader: document.getElementById("final-fs").textContent,
+        });
+
+        orthoScene = new THREE.Scene();
+        orthoCamera = new THREE.OrthographicCamera(
+          1 / -2,
+          1 / 2,
+          1 / 2,
+          1 / -2,
+          0.00001,
+          1000
+        );
+        orthoQuad = new THREE.Mesh(
+          new THREE.PlaneBufferGeometry(1, 1),
+          combineShader
+        );
+        orthoScene.add(orthoQuad);
+      }
+
+      function init() {
+        container = document.getElementById("container");
+
+        scene = new THREE.Scene();
+
+        camera = new THREE.PerspectiveCamera(
+          70,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          10000
+        );
+        camera.target = new THREE.Vector3(0, 0, 0);
+        camera.position.set(0, 0, 120);
+        camera.lookAt(camera.target);
+        scene.add(camera);
+
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          preserveDrawingBuffer: true,
+        });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x000404, 1);
+        container.appendChild(renderer.domElement);
+
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+
+        addFullscreenShortcut(renderer.domElement, onWindowResized);
+
+        helper = new FBOHelper(renderer);
+        helper.show(false);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        initScene();
+        onWindowResized();
+
+        window.addEventListener("resize", onWindowResized);
+
+        animate();
+      }
+
+      function onWindowResized(event) {
+        var w = container.clientWidth;
+        var h = container.clientHeight;
+
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+
+        var dPR = renderer.getPixelRatio();
+        resolution.set(w * dPR, h * dPR);
+
+        var sW = Maf.nextPowerOfTwo(w) / 2;
+        var sH = Maf.nextPowerOfTwo(h) / 2;
+
+        baseFBO.setSize(w * dPR, h * dPR);
+        combineFBO.setSize(w * dPR, h * dPR);
+        glowFBO.setSize(sW, sH);
+        tiltShiftFBO.setSize(sW, sH);
+
+        orthoQuad.scale.set(w, h, 1);
+
+        orthoCamera.left = -w / 2;
+        orthoCamera.right = w / 2;
+        orthoCamera.top = h / 2;
+        orthoCamera.bottom = -h / 2;
+        orthoCamera.updateProjectionMatrix();
+
+        helper.setSize(w, h);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        controls.update();
+        odeo.update();
+
+        displacementShader.uniforms.inputTexture.value = targets[1 - targetPtr];
+        renderer.render(rtScene, rtCamera, targets[targetPtr]);
+
+        mesh.material.uniforms.inputTexture.value = targets[targetPtr];
+        renderer.render(scene, camera, baseFBO);
+        orthoQuad.material = copyShader;
+        renderer.render(orthoScene, orthoCamera, glowFBO);
+        orthoQuad.material = combineShader;
+        renderer.render(orthoScene, orthoCamera, combineFBO);
+        orthoQuad.material = tiltShiftShader;
+        renderer.render(orthoScene, orthoCamera, tiltShiftFBO);
+        orthoQuad.material = finalShader;
+        renderer.render(orthoScene, orthoCamera);
+
+        targetPtr = 1 - targetPtr;
+
+        //helper.update();
+      }
+
+      window.addEventListener("load", init);
+    </script>
+  </body>
 </html>

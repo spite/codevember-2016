@@ -1,105 +1,145 @@
-*{
-	box-sizing: border-box;
-	margin :0;
-	padding: 0;
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 html {
-	height: 100%;
-	-moz-user-select: none;
-	-khtml-user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
-	user-select: none;
+  height: 100%;
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 body {
-	margin: 0;
-	padding: 0;
-	background-color: #202020;
-	color: #ffffff;
-	line-height: 1.4em;
-	height: 100%;
-	overflow: hidden;
-	font-family: 'Lato', sans-serif;
-	font-size: 13px;
-	font-weight: 100;
-	text-shadow: 0 1px 0 rgba(0,0,0,1);
+  margin: 0;
+  padding: 0;
+  background-color: #202020;
+  color: #ffffff;
+  line-height: 1.4em;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Lato", sans-serif;
+  font-size: 13px;
+  font-weight: 100;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 1);
 }
 #container {
-	position: absolute;
-	left: 0;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	width: 100%;
-	height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
 }
-#info{
-	position: absolute;
-	left: 20px;
-	top: 20px;
-	max-width: 400px;
-	height: 100%;
-	overflow: auto;
-	pointer-events: none;
+#info {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  max-width: 400px;
+  height: 100%;
+  overflow: auto;
+  pointer-events: none;
 }
-#info h1{
-	font-family: 'Playfair Display', sans-serif;
-	font-weight: 700;
-	font-size: 16px;
-	margin-bottom: 1em;
-	text-transform: uppercase;
+#info h1 {
+  font-family: "Playfair Display", sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 1em;
+  text-transform: uppercase;
 }
-#info p{
-	margin-bottom: 1em;
-	hyphens: auto;
+#info p {
+  margin-bottom: 1em;
+  hyphens: auto;
 }
-#info a, .action{
-	color: inherit;
-	cursor: pointer;
-	text-decoration: none;
-	opacity: .7;
-	transition: opacity 100ms ease-out;
-	pointer-events: auto;
-	font-weight: 700;
+#info a,
+.action {
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  opacity: 0.7;
+  transition: opacity 100ms ease-out;
+  pointer-events: auto;
+  font-weight: 700;
 }
-#info a:hover, .action:hover{
-	opacity: 1
+#info a:hover,
+.action:hover {
+  opacity: 1;
 }
-b{
-	font-weight: 700;
+b {
+  font-weight: 700;
 }
-#details{
-	background-color: rgba( 0, 0,0, .4);
-	height: auto;
-	opacity: 1;
-	transition: opacity 250ms ease-out, height 250ms ease-out;;
-	overflow: hidden;
-	padding: 20px;
-	margin-bottom: 1em;
-	height: calc(100% - 300px);
-    overflow: auto;
-    pointer-events: auto;
+#details {
+  background-color: rgba(0, 0, 0, 0.4);
+  height: auto;
+  opacity: 1;
+  transition: opacity 250ms ease-out, height 250ms ease-out;
+  overflow: hidden;
+  padding: 20px;
+  margin-bottom: 1em;
+  height: calc(100% - 300px);
+  overflow: auto;
+  pointer-events: auto;
 }
-#details.hidden{
-	opacity: 0;
-	height: 0;
-	padding: 0;
-	margin-bottom: 0;
+#details.hidden {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  margin-bottom: 0;
 }
-#moreDetails{
-	cursor:pointer;
-	pointer-events: auto;
+#moreDetails {
+  cursor: pointer;
+  pointer-events: auto;
 }
-.active{ font-weight: bold; opacity: 1;}
-:-webkit-full-screen, :fullscreen, :-ms-fullscreen, :-moz-full-screen {
-position: fixed;
-width: 100%;
-height: 100%;
-top: 0;
-background: none;}
-.fullscreen-button{
-	position: absolute; right: 20px; bottom: 20px; border: 1px solid white; z-index: 1000; width: 28px; height: 28px; cursor: pointer; text-align: center; line-height: 24px
+.active {
+  font-weight: bold;
+  opacity: 1;
 }
-.code{
-	font-family: "courier new", courier; color: green; padding: 5px;
+:-webkit-full-screen,
+:fullscreen,
+:-ms-fullscreen,
+:-moz-full-screen {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  background: none;
+}
+.fullscreen-button {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  border: 1px solid white;
+  z-index: 1000;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  text-align: center;
+  line-height: 24px;
+}
+.code {
+  font-family: "courier new", courier;
+  color: green;
+  padding: 5px;
+}
+
+#overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: all;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+#overlay p {
+  background-color: black;
+  padding: 1em;
+  border-radius: 0.5em;
 }
