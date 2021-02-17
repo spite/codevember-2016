@@ -1,67 +1,109 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<title>Street View PBR</title>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <head>
+    <title>Street View PBR</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
 
-		<link rel="stylesheet" type="text/css" href="../css/styles.css" media="screen" />
-		<link href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700" rel="stylesheet">
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="../css/styles.css"
+      media="screen"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Lato:100,700|Playfair+Display:700"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="container"></div>
+    <div id="info">
+      <p><a href="../8">Previous</a> | <a href="../10">Next</a></p>
+      <h1>9. Street View PBR</h1>
+      <p>
+        Modifying a MeshStandardMaterial trying to add Image Based Lighting
+        (IBL).
+      </p>
+      <p id="moreDetails"><b>More details...</b></p>
+      <div id="details" class="hidden">
+        <p>
+          The idea was to modify the lighting equation to add a diffuse and
+          specular term extracted from the equirectangular panorama fetched from
+          Google Street View. It's still too complicated to modify the shader at
+          that level.
+        </p>
+        <p><b>Credits</b></p>
+        <p>
+          Based on Matt DesLauriers's
+          <a
+            href="https://gist.github.com/mattdesl/034c5daf2cf5a01c458bc9584cbe6744"
+            >Custom mesh standard material</a
+          >.
+        </p>
+        <p>
+          Textures by
+          <a
+            href="http://kay-vriend.blogspot.com.es/2012/09/slate-tiles-texture.html"
+            >Käy Vriend</a
+          >
+        </p>
+        <p>
+          Inspired by
+          <a href="https://twitter.com/archillect/status/797043706490720256"
+            >this image</a
+          >.
+        </p>
+        <p>
+          Coded using WebGL with <a href="http://threejs.org/">three.js</a>, the
+          Google Maps API,
+          <a href="https://github.com/spite/PanomNom.js/">PanomNom.js</a> and
+          <a href="https://github.com/spite/THREE.EquirectangularToCubemap"
+            >EquirectangularToCubemap</a
+          >.
+        </p>
+      </div>
+      <p>
+        <a href="https://clicktorelease.com/code/codevember-2016/"
+          >See other experiments for Codevember 2016</a
+        >
+      </p>
+    </div>
 
-	</head>
-	<body>
+    <script src="../js/three.js"></script>
+    <script src="../js/OrbitControls.js"></script>
+    <script src="../js/Maf.js"></script>
+    <script src="../js/PanomNom.min.js"></script>
+    <script src="../js/MeshCustomMaterial.js"></script>
+    <script src="../js/EquirectangularToCubemap.js"></script>
+    <script src="//maps.google.com/maps/api/js?key=AIzaSyDQ6D_BYd-oL3lSprEPPCF2u0MtHX9MO9k"></script>
+    <script src="../js/Common.js"></script>
 
-		<div id="container"></div>
-		<div id="info" >
-			<p><a href="../8" >Previous</a> | <a href="../10" >Next</a></p>
-			<h1>9. Street View PBR</h1>
-			<p>Modifying a MeshStandardMaterial trying to add Image Based Lighting (IBL).</p>
-			<p id="moreDetails"><b>More details...</b></p>
-			<div id="details" class="hidden">
-				<p>The idea was to modify the lighting equation to add a diffuse and specular term extracted from the equirectangular panorama fetched from Google Street View. It's still too complicated to modify the shader at that level.</p>
-				<p><b>Credits</b></p>
-				<p>Based on Matt DesLauriers's <a href="https://gist.github.com/mattdesl/034c5daf2cf5a01c458bc9584cbe6744" >Custom mesh standard material</a>.</p>
-				<p>Textures by <a href="http://kay-vriend.blogspot.com.es/2012/09/slate-tiles-texture.html" >Käy Vriend</a></p>
-				<p>Inspired by <a href="https://twitter.com/archillect/status/797043706490720256" >this image</a>.</p>
-				<p>Coded using WebGL with <a href="http://threejs.org/" >three.js</a>, the Google Maps API, <a href="https://github.com/spite/PanomNom.js/" >PanomNom.js</a> and <a href="https://github.com/spite/THREE.EquirectangularToCubemap" >EquirectangularToCubemap</a>.</p>
-			</div>
-			<p><a href="https://clicktorelease.com/code/codevember-2016/" >See other experiments for Codevember 2016</a></p>
-		</div>
+    <script>
+      // https://twitter.com/archillect/status/797043706490720256
+      // http://kay-vriend.blogspot.com.es/2012/09/slate-tiles-texture.html
 
-		<script src="../js/three.js"></script>
-		<script src="../js/OrbitControls.js"></script>
-		<script src="../js/Maf.js"></script>
-		<script src="../js/PanomNom.min.js"></script>
-		<script src="../js/MeshCustomMaterial.js"></script>
-		<script src="../js/EquirectangularToCubemap.js"></script>
-		<script src="//maps.google.com/maps/api/js?key=AIzaSyDQ6D_BYd-oL3lSprEPPCF2u0MtHX9MO9k"></script>
-		<script src="../js/Common.js"></script>
+      "use strict";
 
-<script>
+      var container, renderer, camera, controls, scene;
+      var mesh, bkg;
 
-// https://twitter.com/archillect/status/797043706490720256
-// http://kay-vriend.blogspot.com.es/2012/09/slate-tiles-texture.html
+      var helper;
 
-'use strict';
+      var container = document.getElementById("container");
 
-var container, renderer, camera, controls, scene;
-var mesh, bkg;
+      function initScene() {
+        return new Promise(function (resolve, reject) {
+          var light1 = new THREE.SpotLight(0, 1, 100, 1, 0.02, 0.1);
+          light1.position.set(0, 40, 0);
+          light1.castShadow = true;
+          light1.shadow.mapSize.width = light1.shadow.mapSize.height = 1024;
+          scene.add(light1);
 
-var helper;
-
-var container = document.getElementById( 'container' );
-
-function initScene() {
-
-	return new Promise( function( resolve, reject ) {
-
-	var light1 = new THREE.SpotLight( 0, 1, 100, 1, .02, .1 );
-	light1.position.set( 0, 40, 0 );
-	light1.castShadow = true;
-	light1.shadow.mapSize.width = light1.shadow.mapSize.height = 1024;
-	scene.add( light1 );
-
-	var vs = `#define PHYSICAL
+          var vs = `#define PHYSICAL
 varying vec3 vViewPosition;
 #ifndef FLAT_SHADED
 	varying vec3 vNormal;
@@ -104,7 +146,7 @@ void main() {
 	#include <shadowmap_vertex>
 }`;
 
-	var fs =`#define PHYSICAL
+          var fs = `#define PHYSICAL
 uniform vec3 diffuse;
 uniform vec3 emissive;
 uniform float roughness;
@@ -261,136 +303,150 @@ vec3 panoSpecular = texture2D( panoMap, vUvDiffuse, 4. ).rgb;
 	#include <fog_fragment>
 }`;
 
-	var location = new google.maps.LatLng( 51.50700703827454 + Maf.randomInRange( -.1, .1 ) ,-0.12791916931155356 + Maf.randomInRange( -.1, .1 )  );
-	//location = new google.maps.LatLng( 41.3850639,2.1734034999999494);
-	location = new google.maps.LatLng( 61.6581287,9.6351752 );
+          var location = new google.maps.LatLng(
+            51.50700703827454 + Maf.randomInRange(-0.1, 0.1),
+            -0.12791916931155356 + Maf.randomInRange(-0.1, 0.1)
+          );
+          //location = new google.maps.LatLng( 41.3850639,2.1734034999999494);
+          //var location = new google.maps.LatLng(61.6581287, 9.6351752);
 
-	var loader = new PANOMNOM.GoogleStreetViewLoader();
+          var loader = new PANOMNOM.GoogleStreetViewLoader();
 
-	loader.addEventListener( 'error', function( res ) {
-		console.log( res );
-		reject( res );
-	});
+          loader.addEventListener("error", function (res) {
+            console.log(res);
+            reject(res);
+          });
 
-	loader.addEventListener( 'load', function() {
+          loader.addEventListener("load", function () {
+            var tex = new THREE.Texture(this.canvas);
+            tex.needsUpdate = true;
 
-		var tex = new THREE.Texture( this.canvas );
-		tex.needsUpdate = true;
+            var equiToCube = new EquirectangularToCubemap(renderer);
+            var panoTex = equiToCube.convert(tex, 1024);
 
-		var equiToCube = new EquirectangularToCubemap( renderer );
-		var panoTex = equiToCube.convert( tex, 1024 );
+            var material = new MeshCustomMaterial({
+              u: {
+                emissive: { value: new THREE.Color(0x000000) },
+                roughness: { value: 0.5 },
+                metalness: { value: 1 },
+                envMapIntensity: { value: 1 },
+                panoMap: { value: new THREE.Texture() },
+              },
+              vertexShader: vs, //THREE.ShaderChunk.meshphysical_vert,
+              fragmentShader: fs, //THREE.ShaderChunk.meshphysical_frag,
+              metalness: 0.5,
+              roughness: 1,
+              map: new THREE.TextureLoader().load(
+                "../assets/pattern_09/diffuse.jpg"
+              ),
+              normalMap: new THREE.TextureLoader().load(
+                "../assets/pattern_09/normal.jpg"
+              ),
+              bumpMap: new THREE.TextureLoader().load(
+                "../assets/pattern_09/height.jpg"
+              ),
+              roughnessMap: new THREE.TextureLoader().load(
+                "../assets/pattern_09/specular.jpg"
+              ),
+              envMap: panoTex,
+            });
 
-		var material = new MeshCustomMaterial( {
-				u: {
-					emissive : { value: new THREE.Color( 0x000000 ) },
-					roughness: { value: .5 },
-					metalness: { value: 1 },
-					envMapIntensity : { value: 1 },
-					panoMap : { value: new THREE.Texture() }
-				},
-				vertexShader: vs,//THREE.ShaderChunk.meshphysical_vert,
-				fragmentShader: fs,//THREE.ShaderChunk.meshphysical_frag,
-				metalness: .5,
-				roughness: 1,
-				map: new THREE.TextureLoader().load( '../assets/pattern_09/diffuse.jpg' ),
-				normalMap: new THREE.TextureLoader().load( '../assets/pattern_09/normal.jpg' ),
-				bumpMap: new THREE.TextureLoader().load( '../assets/pattern_09/height.jpg' ),
-				roughnessMap: new THREE.TextureLoader().load( '../assets/pattern_09/specular.jpg' ),
-				envMap: panoTex
-			}
-		);
+            //var geometry = new THREE.IcosahedronGeometry( 10, 3 );
+            var geometry = new THREE.TorusKnotBufferGeometry(10, 3, 200, 36);
 
-		//var geometry = new THREE.IcosahedronGeometry( 10, 3 );
-		var geometry = new THREE.TorusKnotBufferGeometry( 10, 3, 200, 36 );
+            [
+              material.map,
+              material.normalMap,
+              material.bumpMap,
+              material.roughnessMap,
+            ].forEach(function (map) {
+              if (map) {
+                map.repeat.set(10, 1);
+                map.wrapS = map.wrapT = THREE.RepeatWrapping;
+              }
+            });
 
-		[ material.map, material.normalMap, material.bumpMap, material.roughnessMap ].forEach( function( map ) {
-			if( map ) {
-				map.repeat.set( 10, 1 );
-				map.wrapS = map.wrapT = THREE.RepeatWrapping;
-			}
-		})
+            material.uniforms.panoMap.value = tex;
 
-		material.uniforms.panoMap.value = tex;
+            mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+            mesh.castShadow = mesh.receiveShadow = true;
 
-		mesh = new THREE.Mesh( geometry, material );
-		scene.add( mesh );
-		mesh.castShadow = mesh.receiveShadow = true;
+            bkg = new THREE.Mesh(
+              new THREE.IcosahedronGeometry(100, 5),
+              new THREE.MeshBasicMaterial({ side: THREE.BackSide })
+            );
+            scene.add(bkg);
 
-		bkg = new THREE.Mesh( new THREE.IcosahedronGeometry( 100, 5 ), new THREE.MeshBasicMaterial( { side: THREE.BackSide }) );
-		scene.add( bkg );
+            bkg.material.map = tex;
+            bkg.material.needsUpdate = true;
 
-		bkg.material.map = tex;
-		bkg.material.needsUpdate = true;
+            resolve();
+          });
+          loader.loadFromLocation(location, 3);
+        });
+      }
 
-		resolve()
+      function init() {
+        container = document.getElementById("container");
 
-	});
-	loader.loadFromLocation( location, 3 );
+        scene = new THREE.Scene();
 
-});
+        camera = new THREE.PerspectiveCamera(
+          70,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          10000
+        );
+        camera.target = new THREE.Vector3(0, 0, 0);
+        camera.position.set(0, 0, 35);
+        camera.lookAt(camera.target);
+        scene.add(camera);
 
-}
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          preserveDrawingBuffer: true,
+        });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x261b1f, 1);
+        container.appendChild(renderer.domElement);
 
-function init() {
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
 
-	container = document.getElementById( 'container' );
+        addFullscreenShortcut(renderer.domElement, onWindowResized);
 
-	scene = new THREE.Scene();
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.noZoom = true;
 
-	camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, .1, 10000 );
-	camera.target = new THREE.Vector3( 0, 0, 0 );
-	camera.position.set( 0, 0, 35 );
-	camera.lookAt( camera.target );
-	scene.add( camera );
+        onWindowResized();
+        window.addEventListener("resize", onWindowResized);
 
-	renderer = new THREE.WebGLRenderer( { antialias: true, preserveDrawingBuffer: true } );
-	renderer.setPixelRatio( window.devicePixelRatio );
-	renderer.setClearColor( 0x261b1f, 1 );
-	container.appendChild( renderer.domElement );
+        initScene().then(animate);
+      }
 
-	renderer.shadowMap.enabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap;
+      function onWindowResized(event) {
+        var w = container.clientWidth;
+        var h = container.clientHeight;
 
-	addFullscreenShortcut( renderer.domElement, onWindowResized );
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
 
-	controls = new THREE.OrbitControls( camera, renderer.domElement );
-	controls.noZoom = true;
+      function animate() {
+        requestAnimationFrame(animate);
 
-	onWindowResized();
-	window.addEventListener( 'resize', onWindowResized );
+        controls.update();
+        mesh.rotation.y += 0.01;
+        mesh.rotation.x += 0.001;
 
-	initScene().then( animate )
+        bkg.position.copy(camera.position);
 
-}
+        renderer.render(scene, camera);
+      }
 
-function onWindowResized( event ) {
-
-	var w = container.clientWidth;
-	var h = container.clientHeight;
-
-	renderer.setSize( w, h );
-	camera.aspect = w / h;
-	camera.updateProjectionMatrix();
-
-}
-
-function animate() {
-
-	requestAnimationFrame( animate );
-
-	controls.update();
-	mesh.rotation.y += .01;
-	mesh.rotation.x += .001;
-
-	bkg.position.copy( camera.position );
-
-	renderer.render( scene, camera );
-
-}
-
-window.addEventListener( 'load', init );
-
-</script>
-
-	</body>
+      window.addEventListener("load", init);
+    </script>
+  </body>
 </html>
