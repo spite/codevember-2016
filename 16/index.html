@@ -708,14 +708,35 @@
         helper.setSize(w, h);
       }
 
+      // the displacement buffer scrolls one texel per step: run it at a fixed
+      // 60 steps per second so the scroll speed doesn't follow the framerate
+      var STEP = 1000 / 60;
+      var MAX_STEPS = 4;
+      var accumulator = 0;
+      var ot = performance.now();
+
       function animate() {
         requestAnimationFrame(animate);
+
+        var ct = performance.now();
+        accumulator += Math.min(ct - ot, 200);
+        ot = ct;
 
         controls.update();
         odeo.update();
 
-        displacementShader.uniforms.inputTexture.value = targets[1 - targetPtr];
-        renderer.render(rtScene, rtCamera, targets[targetPtr]);
+        var steps = 0;
+        while (accumulator >= STEP && steps < MAX_STEPS) {
+          displacementShader.uniforms.inputTexture.value = targets[1 - targetPtr];
+          renderer.render(rtScene, rtCamera, targets[targetPtr]);
+          targetPtr = 1 - targetPtr;
+          accumulator -= STEP;
+          steps++;
+        }
+        if (steps === MAX_STEPS) accumulator = 0;
+
+        // the loop leaves targetPtr pointing at the next buffer to write
+        targetPtr = 1 - targetPtr;
 
         mesh.material.uniforms.inputTexture.value = targets[targetPtr];
         renderer.render(scene, camera, baseFBO);

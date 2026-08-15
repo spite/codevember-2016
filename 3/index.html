@@ -951,9 +951,10 @@ Fader.prototype.hide = function() {
 
 }
 
-Fader.prototype.update = function() {
+Fader.prototype.update = function( delta ) {
 
-	this.draw += ( this.nDraw - this.draw ) * this.easing;
+	if( delta === undefined ) delta = 1;
+	this.draw += ( this.nDraw - this.draw ) * ( 1 - Math.pow( 1 - this.easing, delta ) );
 
 	var epsilon = .01;
 
@@ -979,13 +980,19 @@ Fader.prototype.update = function() {
 
 var fader = new Fader();
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
+	var ct = performance.now();
+	var delta = Math.min( ct - ot, 100 ) / ( 1000 / 60 );
+	ot = ct;
+
 	controls.update();
 
-	var t = fader.update();
+	var t = fader.update( delta );
 	thinLines.geometry.setDrawRange( 0, thinLines.geometry.attributes.position.count * t )
 	thickLines.geometry.setDrawRange( 0, thickLines.geometry.attributes.position.count * t )
 	particleSystem.geometry.setDrawRange( 0, particleSystem.geometry.attributes.position.count * t )

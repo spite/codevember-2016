@@ -148,6 +148,7 @@ uniform mat4 projectionMatrix;
 uniform sampler2D positions;
 uniform vec2 dimensions;
 uniform float sphereSize;
+uniform float delta; // elapsed time in 60fps frames
 
 varying vec2 vSpeed;
 
@@ -156,7 +157,9 @@ void main() {
 	vec4 i = texture2D( positions, sphereData.xy / dimensions );
 	vec3 spherePos = i.xyz;
 	vec3 stretchedVertex = sphereSize * position;
-	vec3 dir = vec3( 0., 0., i.z - i.a );
+	// i.a is the height on the previous frame, so the difference has to be
+	// brought back to the distance covered in one 60fps frame
+	vec3 dir = vec3( 0., 0., ( i.z - i.a ) / delta );
 	dir *= 2.;
 	if( dot( normalize( dir ), normalize( normal ) ) < 0. ) stretchedVertex.z -= .5 * dir.z;
 	else stretchedVertex.z += .5 * dir.z;
@@ -304,7 +307,8 @@ function initScene() {
 			resolution: { type: 'v2', value: resolution },
 			positions: { type: 't', value: positionData },
 			dimensions: { type: 'v2', value: dimensions },
-			sphereSize: { type: 'f', value: .2 }
+			sphereSize: { type: 'f', value: .2 },
+			delta: { type: 'f', value: 1 }
 		},
 		vertexShader: document.getElementById( 'motion-vs' ).textContent,
 		fragmentShader: document.getElementById( 'motion-fs' ).textContent
@@ -436,13 +440,21 @@ function radial( x, y, f, r, t ) {
 
 }
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
 	controls.update();
 
-	var t = .004 * performance.now();
+	var ct = performance.now();
+	// the motion vectors are the difference between two frames, so the blur
+	// needs to know how long a frame took to keep the same streak length
+	motionMaterial.uniforms.delta.value = Math.max( Math.min( ct - ot, 100 ) / ( 1000 / 60 ), .1 );
+	ot = ct;
+
+	var t = .004 * ct;
 	var s = .01;
 
 	if( run ) {

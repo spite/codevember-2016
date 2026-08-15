@@ -434,12 +434,18 @@ vec3 panoSpecular = texture2D( panoMap, vUvDiffuse, 4. ).rgb;
         camera.updateProjectionMatrix();
       }
 
+      var ot = performance.now();
+
       function animate() {
         requestAnimationFrame(animate);
 
+        var ct = performance.now();
+        var delta = Math.min(ct - ot, 100) / (1000 / 60);
+        ot = ct;
+
         controls.update();
-        mesh.rotation.y += 0.01;
-        mesh.rotation.x += 0.001;
+        mesh.rotation.y += 0.01 * delta;
+        mesh.rotation.x += 0.001 * delta;
 
         bkg.position.copy(camera.position);
 

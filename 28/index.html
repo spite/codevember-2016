@@ -623,13 +623,19 @@ function onWindowResized( event ) {
 
 }
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
+	var ct = performance.now();
+	var delta = Math.min( ct - ot, 100 ) / ( 1000 / 60 );
+	ot = ct;
+
 	controls.update();
 
-	meshes.forEach( function( m ) { m.mesh.rotation.y += .005 * m.speed; } );
+	meshes.forEach( function( m ) { m.mesh.rotation.y += .005 * m.speed * delta; } );
 
 	scene.overrideMaterial = null;
 	renderer.render( scene, camera, colorFBO );

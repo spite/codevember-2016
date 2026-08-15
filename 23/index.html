@@ -373,6 +373,7 @@ function updateLine( line, position ) {
 }
 
 var lastTime = 0;
+var lineAccumulator = 0;
 var tmpPos = new THREE.Vector3();
 
 function animate() {
@@ -386,6 +387,16 @@ function animate() {
 	lastTime = t;
 
 	world.step( fixedTimeStep, dt, maxSubSteps );
+
+	// the trails relax once per 60fps frame, so they run on the same kind of
+	// fixed step the physics does instead of following the framerate
+	lineAccumulator += Math.min( dt, .2 );
+	var lineSteps = 0;
+	while( lineAccumulator >= fixedTimeStep && lineSteps < maxSubSteps ) {
+		lineAccumulator -= fixedTimeStep;
+		lineSteps++;
+	}
+	if( lineSteps === maxSubSteps ) lineAccumulator = 0;
 
 	sphereMotionData.forEach( ( s, id ) => {
 
@@ -409,7 +420,7 @@ function animate() {
 		sphereLines[ id ].forEach( function( line, k ) {
 			tmpPos.copy( s.geometry.vertices[ k ] );
 			tmpPos.applyMatrix4( s.matrixWorld );
-			updateLine( line, tmpPos );
+			for( var n = 0; n < lineSteps; n++ ) updateLine( line, tmpPos );
 		})
 
 	} );

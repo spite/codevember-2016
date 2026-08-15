@@ -686,12 +686,18 @@ function onWindowResized( event ) {
 
 }
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
+	var ct = performance.now();
+	var delta = Math.min( ct - ot, 100 ) / ( 1000 / 60 );
+	ot = ct;
+
 	controls.update();
-	mesh.rotation.y += .01;
+	mesh.rotation.y += .01 * delta;
 
 	renderer.setClearColor( 0xffffff );
 	//mesh.material = depthMaterial

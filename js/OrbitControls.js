@@ -123,7 +123,15 @@ THREE.OrbitControls = function ( object, domElement ) {
 		var lastPosition = new THREE.Vector3();
 		var lastQuaternion = new THREE.Quaternion();
 
+		// elapsed time between update() calls, in 60fps frames, so damping and
+		// auto rotation run at the same speed regardless of framerate
+		var lastUpdate = performance.now();
+
 		return function update () {
+
+			var now = performance.now();
+			var delta = Math.min( now - lastUpdate, 100 ) / ( 1000 / 60 );
+			lastUpdate = now;
 
 			var position = scope.object.position;
 
@@ -137,7 +145,7 @@ THREE.OrbitControls = function ( object, domElement ) {
 
 			if ( scope.autoRotate && state === STATE.NONE ) {
 
-				rotateLeft( getAutoRotationAngle() );
+				rotateLeft( getAutoRotationAngle() * delta );
 
 			}
 
@@ -172,8 +180,9 @@ THREE.OrbitControls = function ( object, domElement ) {
 
 			if ( scope.enableDamping === true ) {
 
-				sphericalDelta.theta *= ( 1 - scope.dampingFactor );
-				sphericalDelta.phi *= ( 1 - scope.dampingFactor );
+				var damping = Math.pow( 1 - scope.dampingFactor, delta );
+				sphericalDelta.theta *= damping;
+				sphericalDelta.phi *= damping;
 
 			} else {
 

@@ -398,7 +398,9 @@ function animate() {
 	controls.update();
 
 	var time = performance.now();
-	var dt = ( time - lastTime ) * 16 / 1000;
+	var delta = Math.min( time - lastTime, 100 ) / ( 1000 / 60 ); // frames at 60fps
+	var dt60 = 16 * ( 1000 / 60 ) / 1000; // the value dt used to have at 60fps
+	var dt = delta * dt60;
 
 	intersectPlane.lookAt( camera.position );
 
@@ -437,11 +439,9 @@ function animate() {
 		finalForce.add( s.separationForce );
 		//if( finalForce.length() > 1 ) finalForce.normalize();
 		finalForce.multiplyScalar( .1 * dt * s.scale );
-		s.force.lerp( finalForce, .1 * dt );
-
-		/*tmpVector.copy( finalForce ).sub( s.force );
-		tmpVector.multiplyScalar( Math.pow( .1, 60 * dt ) );
-		s.force = finalForce.sub( tmpVector );*/
+		// exponential smoothing, so the steering settles in the same amount of
+		// time no matter how many frames that takes
+		s.force.lerp( finalForce, 1 - Math.pow( 1 - .1 * dt60, delta ) );
 
 		s.position.add( s.force );
 		sphereData[ id ].x = s.position.x;

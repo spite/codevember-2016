@@ -942,9 +942,35 @@ function onWindowResized( event ) {
 
 }
 
+// the water sim is tuned for one step per 60fps frame, so it runs on a fixed
+// 60Hz accumulator to keep the same wave speed and damping at any framerate
+var STEP = 1000 / 60;
+var MAX_STEPS = 4;
+var accumulator = 0;
+var ot = performance.now();
+
+function stepWater() {
+
+	waterQuad.material.uniforms.strength.value *= .99;
+
+	waterQuad.material.uniforms.previousMap.value = waterBuffers[ p ].texture;
+	waterQuad.material.uniforms.currentMap.value = waterBuffers[ ( p + 1 ) % 3 ].texture;
+	renderer.render( waterScene, waterCamera, waterBuffers[ ( p + 2 ) % 3 ] );
+
+	plane.material.map = waterBuffers[ ( p + 2 ) % 3 ].texture;
+	material.uniforms.heightMap.value = waterBuffers[ ( p + 2 ) % 3 ].texture;
+
+	p = ( p + 1 ) % 3;
+
+}
+
 function animate() {
 
 	requestAnimationFrame( animate );
+
+	var ct = performance.now();
+	var dt = Math.min( ct - ot, 200 );
+	ot = ct;
 
 	controls.update();
 
@@ -960,20 +986,15 @@ function animate() {
 			waterQuad.material.uniforms.pointer.value.set( x, y );
 			waterQuad.material.uniforms.strength.value = clicked?2:.5;
 		}
-		waterQuad.material.uniforms.strength.value *= .99;
-	}
 
-
-	if( !paused ) {
-
-		waterQuad.material.uniforms.previousMap.value = waterBuffers[ p ].texture;
-		waterQuad.material.uniforms.currentMap.value = waterBuffers[ ( p + 1 ) % 3 ].texture;
-		renderer.render( waterScene, waterCamera, waterBuffers[ ( p + 2 ) % 3 ] );
-
-		plane.material.map = waterBuffers[ ( p + 2 ) % 3 ].texture;
-		material.uniforms.heightMap.value = waterBuffers[ ( p + 2 ) % 3 ].texture;
-
-		p = ( p + 1 ) % 3;
+		accumulator += dt;
+		var steps = 0;
+		while( accumulator >= STEP && steps < MAX_STEPS ) {
+			stepWater();
+			accumulator -= STEP;
+			steps++;
+		}
+		if( steps === MAX_STEPS ) accumulator = 0;
 
 	}
 

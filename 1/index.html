@@ -609,13 +609,19 @@ function onWindowResized( event ) {
 
 }
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
+	var ct = performance.now();
+	var delta = Math.min( ct - ot, 100 ) / ( 1000 / 60 );
+	ot = ct;
+
 	controls.update();
-	torus.rotation.x += .01;
-	torus.rotation.y += .001;
+	torus.rotation.x += .01 * delta;
+	torus.rotation.y += .001 * delta;
 
 	renderer.render( scene, camera );
 

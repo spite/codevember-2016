@@ -315,13 +315,14 @@
         camera.updateProjectionMatrix();
       }
 
-      function animate() {
-        requestAnimationFrame(animate);
+      // the waterfall scrolls one row per step, at a fixed 60 steps per second,
+      // so it keeps the same speed at any framerate
+      var STEP = 1000 / 60;
+      var MAX_STEPS = 4;
+      var accumulator = 0;
+      var ot = performance.now();
 
-        controls.update();
-        odeo.update();
-        kick.onUpdate();
-
+      function scrollWaterfall() {
         var ptr = 0;
         for (var y = 0; y < 128 - 1; y++) {
           for (var x = 0; x < 128; x++) {
@@ -335,6 +336,28 @@
             odeo.frequencyData[x] / 255;
         }
         mesh.geometry.attributes.position.needsUpdate = true;
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        var ct = performance.now();
+        var dt = Math.min(ct - ot, 200);
+        var delta = dt / STEP;
+        ot = ct;
+
+        controls.update();
+        odeo.update();
+        kick.onUpdate(delta);
+
+        accumulator += dt;
+        var steps = 0;
+        while (accumulator >= STEP && steps < MAX_STEPS) {
+          scrollWaterfall();
+          accumulator -= STEP;
+          steps++;
+        }
+        if (steps === MAX_STEPS) accumulator = 0;
 
         renderer.render(scene, camera);
       }

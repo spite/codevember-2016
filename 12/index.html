@@ -770,15 +770,21 @@ function onWindowResized( event ) {
 
 }
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
+	var ct = performance.now();
+	var delta = Math.min( ct - ot, 100 ) / ( 1000 / 60 );
+	ot = ct;
+
 	controls.update();
 
-	meshes.forEach( function( m ) { m.mesh.rotation.y += .005 * m.speed; } );
+	meshes.forEach( function( m ) { m.mesh.rotation.y += .005 * m.speed * delta; } );
 
-	var t = .0001 * performance.now();
+	var t = .0001 * ct;
 	var x = .5 * radius * Math.cos( t );
 	var z = .5 * radius * Math.sin( 1.1 * t );
 	var y = 0;

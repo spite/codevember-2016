@@ -30,8 +30,11 @@ Kick.prototype = {
 		this.offKick   = o.offKick   || this.offKick;
 	},
 
-	onUpdate : function () {
+	// delta is the elapsed time expressed in 60fps frames, so the threshold
+	// decays at the same rate no matter how often onUpdate is called
+	onUpdate : function ( delta ) {
 		if ( !this.isOn ) { return; }
+		if ( delta === undefined ) { delta = 1; }
 		var magnitude = this.maxAmplitude( this.frequency, this.fftData );
 		this.value = magnitude;
 		if ( magnitude >= this.currentThreshold &&
@@ -40,7 +43,7 @@ Kick.prototype = {
 		this.onKick && this.onKick.call( this, magnitude );
 	} else {
 		this.offKick && this.offKick.call( this, magnitude );
-		this.currentThreshold -= this.decay;
+		this.currentThreshold -= this.decay * delta;
 	}
 },
 maxAmplitude : function ( frequency, fft ) {

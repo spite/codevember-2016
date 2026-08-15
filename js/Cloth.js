@@ -39,6 +39,13 @@ var gravity = new THREE.Vector3( 0, -GRAVITY, 0 ).multiplyScalar(clothProperties
 var TIMESTEP = 18 / 1000;
 var TIMESTEP_SQ = TIMESTEP * TIMESTEP;
 
+// how much real time a simulation step covers: the integrator is tuned for one
+// step per 60fps frame, so the cloth keeps its original behaviour while running
+// the same number of steps per second at any framerate
+var STEP = 1 / 60;
+var MAX_SUBSTEPS = 5;
+var accumulator = 0;
+
 var pins = [];
 var pinOffset = {x:0,y:0,z:0,'animationVel': 1000,'circularAnimation':false};
 var pinBend = {'amount':1,'periodicity':1000};
@@ -228,6 +235,23 @@ function simulate(time) {
 		lastTime = time;
 		return;
 	}
+
+	accumulator += Math.min( time - lastTime, 200 ) / 1000;
+	lastTime = time;
+
+	var steps = 0;
+	while( accumulator >= STEP && steps < MAX_SUBSTEPS ) {
+		step(time);
+		accumulator -= STEP;
+		steps++;
+	}
+
+	// running behind: drop the backlog instead of spiralling
+	if( steps === MAX_SUBSTEPS ) accumulator = 0;
+
+}
+
+function step(time) {
 
 	var i, il, particles, particle, pt, constrains, constrain;
 

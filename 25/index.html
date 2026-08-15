@@ -316,6 +316,7 @@ uniform sampler2D inputTexture;
 uniform sampler2D feedbackTexture;
 uniform vec2 resolution;
 uniform float time;
+uniform float delta; // elapsed time in 60fps frames
 
 varying vec2 vUv;
 
@@ -383,10 +384,10 @@ vec4 fastBlur( sampler2D map, vec2 uv ) {
 void main() {
 
 	vec2 uv = vUv;
-	vec2 uv2 = ( ( vUv - .5 ) * .99 ) + .5;
+	vec2 uv2 = ( ( vUv - .5 ) * pow( .99, delta ) ) + .5;
 	uv2 += .0005 * random( uv2, time );
 	//gl_FragColor = .9 * texture2D( feedbackTexture, uv2 ) + texture2D( inputTexture, uv );
-	gl_FragColor = .95 * fastBlur( feedbackTexture, uv2 ) + texture2D( inputTexture, uv );
+	gl_FragColor = pow( .95, delta ) * fastBlur( feedbackTexture, uv2 ) + delta * texture2D( inputTexture, uv );
 	//vec4 blurred = blur( feedbackTexture, uv2 );
 	//gl_FragColor = .95 * blurred + texture2D( inputTexture, uv );
 
@@ -608,7 +609,8 @@ function initScene() {
 			resolution: { type: 'v2', value: new THREE.Vector2() },
 			inputTexture: { type: 't', value: baseFBO.texture },
 			feedbackTexture: { type: 't', value: targets[ 0 ] },
-			time: { type: 'f', value: 0 }
+			time: { type: 'f', value: 0 },
+			delta: { type: 'f', value: 1 }
 		},
 		vertexShader: document.getElementById( 'ortho-vs' ).textContent,
 		fragmentShader: document.getElementById( 'feedback-fs' ).textContent,
@@ -810,20 +812,27 @@ function onWindowResized( event ) {
 
 }
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
+	var ct = performance.now();
+	var delta = Math.min( ct - ot, 100 ) / ( 1000 / 60 );
+	ot = ct;
+
 	controls.update();
 	//update();
 
-	line.material.uniforms.time.value = .005 * performance.now();
+	line.material.uniforms.time.value = .005 * ct;
 
 	renderer.render( scene, camera, baseFBO );
 
 	orthoQuad.material = feedbackShader;
 	feedbackShader.uniforms.feedbackTexture.value = targets[ targetPtr ].texture;
-	feedbackShader.uniforms.time.value = .001 * performance.now();
+	feedbackShader.uniforms.time.value = .001 * ct;
+	feedbackShader.uniforms.delta.value = delta;
 	renderer.render( orthoScene, orthoCamera, targets[ 1 - targetPtr ] );
 
 	orthoQuad.material = finalShader;

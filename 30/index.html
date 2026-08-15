@@ -416,14 +416,15 @@
         var t = 0.001 * performance.now();
         return 0.5 + 0.5 * Math.sin(f * t);
       }
-      function updateLEDs() {
+      function updateLEDs(delta) {
         var f = odeo.frequencyData;
 
         var w = canvas.width;
         var h = canvas.height;
 
         ctx.globalCompositeOperation = "source-over";
-        ctx.globalAlpha = 0.25;
+        // fade the same amount per second at any framerate
+        ctx.globalAlpha = 1 - Math.pow(0.75, delta);
         ctx.fillStyle = "#000000";
         ctx.fillRect(0, 0, w, h);
 
@@ -737,17 +738,23 @@
         helper.refreshFBO(blurFBO);
       }
 
+      var ot = performance.now();
+
       function animate() {
         requestAnimationFrame(animate);
+
+        var ct = performance.now();
+        var delta = Math.min(ct - ot, 100) / (1000 / 60);
+        ot = ct;
 
         controls.update();
         odeo.update();
         kicks.forEach(function (kick) {
-          kick.onUpdate();
+          kick.onUpdate(delta);
         });
-        material.uniforms.scroll.value = 0.0005 * performance.now();
+        material.uniforms.scroll.value = 0.0005 * ct;
 
-        updateLEDs();
+        updateLEDs(delta);
 
         scene.overrideMaterial = depthMaterial;
         renderer.render(scene, camera, depthFBO);

@@ -64,6 +64,7 @@ void main() {
 precision highp float;
 
 uniform sampler2D texture;
+uniform float delta; // elapsed time in 60fps frames
 
 varying vec2 vUv;
 
@@ -71,7 +72,7 @@ void main() {
 
 	vec2 uv = vUv;
 	uv.y = 1. - uv.y;
-	vec4 c = texture2D( texture, uv ) - .01;
+	vec4 c = texture2D( texture, uv ) - .01 * delta;
 	gl_FragColor = c;
 
 }
@@ -198,6 +199,7 @@ precision highp float;
 uniform sampler2D positions;
 uniform sampler2D original;
 uniform float time;
+uniform float delta; // elapsed time in 60fps frames
 
 varying vec2 vUv;
 
@@ -285,9 +287,9 @@ float rand(vec2 co){
 void main() {
 
 	vec4 c = texture2D( positions, vUv );
-	c.xyz += .00025 * curlNoise( 2. * c.xyz + vec3( time, 0., 0. ) );
+	c.xyz += .00025 * delta * curlNoise( 2. * c.xyz + vec3( time, 0., 0. ) );
 	c.xyz = normalize( c.xyz );
-	c.a += .5;
+	c.a += .5 * delta;
 	if( c.a > 100. ) {
 		c = .5 * vec4( .5 - rand( c.xy ), .5 - rand( c.zy ), .5 - rand( c.xz ), 0. );
 		c += texture2D( original, vec2( vUv.x, 0. ) );
@@ -405,7 +407,8 @@ function initScene() {
 		uniforms:{
 			original: { type: 't', value: texture },
 			positions: { type: 't', value: texture },
-			time: { type: 'f', value: 0 }
+			time: { type: 'f', value: 0 },
+			delta: { type: 'f', value: 1 }
 		},
 		vertexShader: document.getElementById( 'simulation-vs' ).textContent,
 		fragmentShader: document.getElementById( 'simulation-fs' ).textContent,
@@ -486,7 +489,8 @@ function initScene() {
 
 	clearShader = new THREE.RawShaderMaterial( {
 		uniforms: {
-			texture: { type: 't', value: texture.texture }
+			texture: { type: 't', value: texture.texture },
+			delta: { type: 'f', value: 1 }
 		},
 		vertexShader: document.getElementById( 'clear-vs' ).textContent,
 		fragmentShader: document.getElementById( 'clear-fs' ).textContent,
@@ -596,13 +600,20 @@ function onWindowResized( event ) {
 
 }
 
+var ot = performance.now();
+
 function animate() {
 
 	requestAnimationFrame( animate );
 
+	var ct = performance.now();
+	var delta = Math.min( ct - ot, 100 ) / ( 1000 / 60 );
+	ot = ct;
+
 	controls.update();
 
-	simulationShader.uniforms.time.value = .0001 * performance.now();
+	simulationShader.uniforms.delta.value = delta;
+	simulationShader.uniforms.time.value = .0001 * ct;
 	simulationShader.uniforms.positions.value = targets[ targetPos ].texture;
 	targetPos = 1 - targetPos;
 	renderer.render( rtScene, rtCamera, targets[ targetPos ] );
@@ -611,6 +622,7 @@ function animate() {
 
 	orthoQuad.visible = true; orthoMesh.visible = false;
 	clearShader.uniforms.texture.value = textureFBO[ targetTexture ].texture;
+	clearShader.uniforms.delta.value = delta;
 	targetTexture = 1 - targetTexture;
 	renderer.render( orthoScene, orthoCamera, textureFBO[ targetTexture ] );
 	textureShader.uniforms.positions.value = targets[ targetPos ].texture;
