@@ -56,23 +56,24 @@
           I'm already late.
         </p>
         <p>
-          Music is
+          The original titles were scored by MassiveMusic and never released, so
+          the music here is
           <a
-            href="https://soundcloud.com/rone-music/dominik-eulberg-der-tanz-der"
-            >Dominik Eulberg - Der Tanz der Gluehwuermchen (Rone Remix) [Traum
-            145]</a
+            href="https://pixabay.com/es/music/sintetizador-intro-opening-titles-music-583247/"
+            >Intro Opening Titles Music</a
           >
-          because it' soooo good i couldn't find a better one.
+          by Alex Morgan, from Pixabay. <b>Play</b> cycles through the other
+          bundled tracks, and you can drop your own audio file on the page.
         </p>
         <p>
           Coded using WebGL with
-          <a href="http://threejs.org/">three.js</a> SoundCloud API,
+          <a href="http://threejs.org/">three.js</a>,
           <a href="https://github.com/kaimallea/isMobile">isMobile.js</a> and
           <a href="https://github.com/spite/Maf.js/tree/master">Maf.js</a>
         </p>
       </div>
       <p>
-        <a href="https://clicktorelease.com/code/codevember-2016/"
+        <a href="https://spite.github.io/codevember-2016/"
           >See other experiments for Codevember 2016</a
         >
       </p>
@@ -82,7 +83,6 @@
     <script src="../js/OrbitControls.js"></script>
     <script src="../js/DeviceOrientationControls.js"></script>
     <script src="../js/Maf.js"></script>
-    <script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
     <script src="../js/Odeo.js"></script>
     <script src="../js/Kick.js"></script>
     <script src="../js/THREE.FBOHelper.js"></script>
@@ -405,10 +405,20 @@
         });
       }
 
+      // How bright the LEDs get. The original fixed floor of 128 was tuned
+      // against quieter streams; loud masters sit near 200 in these bands and
+      // leave the bars wide open, which the glow pass then blows out. Measuring
+      // against each band's own recent peak -which Kick.js already tracks in
+      // currentThreshold- keeps the tunnel in the same range whatever is
+      // playing. Lower LED_FLOOR or raise LED_GAIN for a brighter tunnel.
+      var LED_FLOOR = 0.7;
+      var LED_GAIN = 0.5;
+
       function getKick(id, threshold, width) {
         var kick = kicks[id];
-        var v = Math.max(0, (kick.value - threshold) / 255);
-        var width = kick.isOn ? width * v : 0;
+        var peak = Math.max(kick.currentThreshold, threshold);
+        var v = Math.max(0, (kick.value - LED_FLOOR * peak) / 255);
+        var width = kick.isOn ? width * v * LED_GAIN : 0;
         return width;
       }
 
@@ -461,20 +471,38 @@
         LEDTexture.needsUpdate = true;
       }
 
-      var odeo = new Odeo({
-        soundCloudId: "b1275b704badf79d972d51aa4b92ea15",
-      });
+      var odeo = new Odeo();
+
+      // Play cycles through the bundled tracks; see assets/music/CREDITS.md
+      var tracks = [
+        "../assets/music/alex-morgan-intro-opening-titles-music-583247.mp3",
+        "../assets/music/xu-the-other-side.mp3",
+        "../assets/music/florian-filsinger-i-love-she.mp3",
+        "../assets/music/pixabay-lofi-fog.mp3",
+      ];
+      var currentTrack = 0;
+      var skipped = 0;
+
+      function playTrack(i) {
+        currentTrack = (i + tracks.length) % tracks.length;
+        skipped = 0;
+        odeo.playURL(tracks[currentTrack]);
+      }
+
+      // a missing track shouldn't stop the music, just move to the next one
+      odeo.onError = function () {
+        if (skipped++ >= tracks.length) return;
+        currentTrack = (currentTrack + 1) % tracks.length;
+        odeo.playURL(tracks[currentTrack]);
+      };
+
       document
         .getElementById("playBtn")
         .addEventListener("click", function (e) {
-          odeo.stopUsingMicrophone();
-          odeo.playSoundCloud(
-            "https://soundcloud.com/rone-music/dominik-eulberg-der-tanz-der"
-          );
+          playTrack(currentTrack + 1);
           e.preventDefault();
         });
       document.getElementById("micBtn").addEventListener("click", function (e) {
-        odeo.stopSoundCloud();
         odeo.useMicrophone();
         e.preventDefault();
       });
@@ -484,14 +512,23 @@
         () => {
           overlay.style.display = "none";
           odeo.activate();
-          odeo.playSoundCloud(
-            "https://soundcloud.com/rone-music/dominik-eulberg-der-tanz-der"
-          );
+          playTrack(0);
         },
         { once: true }
       );
-      //odeo.playSoundCloud( 'https://soundcloud.com/hunz/neon' );
-      //odeo.playSoundCloud( 'https://soundcloud.com/jugi/onward-giddy-up-by-yzi' );
+
+      // drop any audio file on the page to visualise it instead
+      window.addEventListener("dragover", function (e) {
+        e.preventDefault();
+      });
+      window.addEventListener("drop", function (e) {
+        e.preventDefault();
+        var file = e.dataTransfer.files[0];
+        if (file) {
+          odeo.activate();
+          odeo.playFile(file);
+        }
+      });
 
       var kicks = [];
 

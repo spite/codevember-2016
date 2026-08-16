@@ -3,44 +3,53 @@
 (function () {
   var AudioContext = window.AudioContext || window.webkitAudioContext;
 
-  function OdeoSoundCloudPlayer(id, odeo) {
-    this.id = id;
+  // Plays any audio the browser can decode: a bundled file, a remote URL that
+  // sends CORS headers, or a file the visitor dropped on the page. This used to
+  // go through the SoundCloud API, which now needs OAuth on every request and
+  // so can't work from a static page.
+  function OdeoAudioPlayer(odeo) {
     this.odeo = odeo;
-
-    SC.initialize({
-      client_id: this.id,
-    });
+    this.objectURL = null;
 
     this.audio = document.createElement("audio");
     this.audio.loop = true;
-    this.audio.autoplay = true;
-    this.audio.crossOrigin = "";
+    this.audio.crossOrigin = "anonymous";
 
     this.songSource = this.odeo.context.createMediaElementSource(this.audio);
     this.songSource.connect(this.odeo.analyser);
     this.songSource.connect(this.odeo.context.destination);
-  }
 
-  OdeoSoundCloudPlayer.prototype.getSong = function (songURL) {
-    SC.resolve(songURL).then(
-      function (song) {
-        console.log(song);
-        //songInfo.innerHTML = '<p><b><a href="' + song.permalink_url + '" >' + song.title + '</a> <a href="#" id="pauseBtn" >PAUSE</a></b><br/><a href="' + song.user.permalink_url + '">' + song.user.username + '</a></p>'
-
-        this.audio.src = song.stream_url + "?client_id=" + this.id;
-        this.audio.play();
-
-        this.songSource.connect(this.odeo.analyser);
-        this.songSource.connect(this.odeo.context.destination);
+    // a missing or undecodable file shouldn't leave the page silent
+    this.audio.addEventListener(
+      "error",
+      function () {
+        if (odeo.onError) odeo.onError(this.audio.src);
       }.bind(this)
     );
+  }
+
+  OdeoAudioPlayer.prototype.play = function (src) {
+    this.releaseObjectURL();
+    this.audio.src = src;
+    return this.audio.play();
   };
 
-  OdeoSoundCloudPlayer.prototype.stop = function () {
+  OdeoAudioPlayer.prototype.playFile = function (file) {
+    this.releaseObjectURL();
+    this.objectURL = URL.createObjectURL(file);
+    this.audio.src = this.objectURL;
+    return this.audio.play();
+  };
+
+  OdeoAudioPlayer.prototype.releaseObjectURL = function () {
+    if (!this.objectURL) return;
+    URL.revokeObjectURL(this.objectURL);
+    this.objectURL = null;
+  };
+
+  OdeoAudioPlayer.prototype.stop = function () {
     this.audio.pause();
   };
-
-  function OdeoMediaPlayer() {}
 
   function OdeoMicrophone(odeo) {
     this.microphone = null;
@@ -71,7 +80,10 @@
   };
 
   OdeoMicrophone.prototype.stop = function () {
+    // the stream may still be pending, or have been denied
+    if (!this.microphone) return;
     this.microphone.disconnect(this.odeo.analyser);
+    this.microphone = null;
   };
 
   function Odeo(opts) {
@@ -84,17 +96,21 @@
 
     this.spectrumTexture = null;
 
-    this.soundCloudPlayer = null;
+    this.player = null;
     this.microphone = null;
   }
 
-  Odeo.prototype.playMedia = function () {};
+  Odeo.prototype.getPlayer = function () {
+    if (!this.player) this.player = new OdeoAudioPlayer(this);
+    return this.player;
+  };
 
   Odeo.prototype.activate = function () {
     this.context.resume();
   };
 
   Odeo.prototype.useMicrophone = function () {
+    this.stop();
     if (!this.microphone) this.microphone = new OdeoMicrophone(this);
     this.microphone.play();
   };
@@ -104,18 +120,26 @@
     this.microphone.stop();
   };
 
-  Odeo.prototype.playSoundCloud = function (url) {
-    if (!this.soundCloudPlayer)
-      this.soundCloudPlayer = new OdeoSoundCloudPlayer(
-        this.options.soundCloudId,
-        this
-      );
-    this.soundCloudPlayer.getSong(url);
+  // url can be a bundled track, or any remote file served with CORS headers
+  Odeo.prototype.playURL = function (url) {
+    this.stopUsingMicrophone();
+    var playing = this.getPlayer().play(url);
+    // autoplay is blocked until the visitor interacts with the page
+    if (playing && playing.catch) playing.catch(function () {});
+    return playing;
   };
 
-  Odeo.prototype.stopSoundCloud = function (url) {
-    if (!this.soundCloudPlayer) return;
-    this.soundCloudPlayer.stop();
+  // for a file the visitor picked or dropped on the page
+  Odeo.prototype.playFile = function (file) {
+    this.stopUsingMicrophone();
+    var playing = this.getPlayer().playFile(file);
+    if (playing && playing.catch) playing.catch(function () {});
+    return playing;
+  };
+
+  Odeo.prototype.stop = function () {
+    if (!this.player) return;
+    this.player.stop();
   };
 
   Odeo.prototype.getSpectrumTexture = function () {

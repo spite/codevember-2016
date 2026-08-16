@@ -29,8 +29,8 @@
       <h1>10. Odeo</h1>
       <p>
         Build a media player class that can be easily integrated, supporting
-        media playback, SoundCloud streaming and getUserMedia streams, using Web
-        Audio API.
+        media playback, dropped files and getUserMedia streams, using Web Audio
+        API.
       </p>
       <p>
         It also uses AnalyserNode to perform an FFT, and can upload the spectrum
@@ -44,13 +44,14 @@
       <p id="moreDetails"><b>More details...</b></p>
       <div id="details" class="hidden">
         <p>
-          SoundCloud stream is done via their API, connecting the stream source
-          to an HTMLAudioElement and creating a MediaElementSource from that.
+          Playback is done by pointing an HTMLAudioElement at a file -bundled,
+          remote with CORS headers, or dropped on the page- and creating a
+          MediaElementSource from it.
         </p>
         <p>The microphone can be used via navigator.getUserMedia<().</p>
         <p>
-          I didn't have time to implement media playback, it would be done with
-          MediaElementSource, too.
+          This originally streamed from SoundCloud, but their API now requires
+          OAuth on every request, which a static page can't do.
         </p>
         <p>
           All nodes are connected to an AnalyserNode and to the AudioContext
@@ -64,18 +65,19 @@
         <p><b>Credits</b></p>
         <p>
           Song is
-          <a href="https://soundcloud.com/datashat/people-without-mouths"
-            >People Without Mouths</a
-          >
-          by Datassette
+          <a href="https://archive.org/details/acediamusic038">i love she</a> by
+          Florian Filsinger, released by Acedia Music under
+          <a href="https://creativecommons.org/licenses/by/2.5/">CC BY 2.5</a>.
+          <b>Play</b> cycles through the other bundled tracks, and you can
+          drop your own audio file on the page.
         </p>
         <p>
-          Coded using WebGL with <a href="http://threejs.org/">three.js</a>, the
-          SoundCloud API and Odeo.js
+          Coded using WebGL with <a href="http://threejs.org/">three.js</a> and
+          Odeo.js
         </p>
       </div>
       <p>
-        <a href="https://clicktorelease.com/code/codevember-2016/"
+        <a href="https://spite.github.io/codevember-2016/"
           >See other experiments for Codevember 2016</a
         >
       </p>
@@ -85,7 +87,6 @@
     <script src="../js/OrbitControls.js"></script>
     <script src="../js/Common.js"></script>
 
-    <script src="https://connect.soundcloud.com/sdk/sdk-3.1.2.js"></script>
     <script src="../js/Odeo.js"></script>
     <script src="../js/Kick.js"></script>
 
@@ -151,19 +152,38 @@
 
       var container = document.getElementById("container");
 
-      var odeo = new Odeo({
-        soundCloudId: "b1275b704badf79d972d51aa4b92ea15",
-      });
+      var odeo = new Odeo();
+
+      // Play cycles through the bundled tracks; see assets/music/CREDITS.md
+      var tracks = [
+        "../assets/music/florian-filsinger-i-love-she.mp3",
+        "../assets/music/xu-the-other-side.mp3",
+        "../assets/music/alex-morgan-intro-opening-titles-music-583247.mp3",
+        "../assets/music/pixabay-lofi-fog.mp3",
+      ];
+      var currentTrack = 0;
+      var skipped = 0;
+
+      function playTrack(i) {
+        currentTrack = (i + tracks.length) % tracks.length;
+        skipped = 0;
+        odeo.playURL(tracks[currentTrack]);
+      }
+
+      // a missing track shouldn't stop the music, just move to the next one
+      odeo.onError = function () {
+        if (skipped++ >= tracks.length) return;
+        currentTrack = (currentTrack + 1) % tracks.length;
+        odeo.playURL(tracks[currentTrack]);
+      };
 
       document
         .getElementById("playBtn")
         .addEventListener("click", function (e) {
-          odeo.stopUsingMicrophone();
-          odeo.playSoundCloud("https://soundcloud.com/hunz/switch-off");
+          playTrack(currentTrack + 1);
           e.preventDefault();
         });
       document.getElementById("micBtn").addEventListener("click", function (e) {
-        odeo.stopSoundCloud();
         odeo.useMicrophone();
         e.preventDefault();
       });
@@ -174,12 +194,23 @@
         () => {
           overlay.style.display = "none";
           odeo.activate();
-          odeo.playSoundCloud(
-            "https://soundcloud.com/datashat/people-without-mouths"
-          );
+          playTrack(0);
         },
         { once: true }
       );
+
+      // drop any audio file on the page to visualise it instead
+      window.addEventListener("dragover", function (e) {
+        e.preventDefault();
+      });
+      window.addEventListener("drop", function (e) {
+        e.preventDefault();
+        var file = e.dataTransfer.files[0];
+        if (file) {
+          odeo.activate();
+          odeo.playFile(file);
+        }
+      });
 
       var kickIsOn = false;
       var lastKickTime = 0;
